@@ -1,30 +1,31 @@
-'use client';
+"use client"
 
-import { ReactNode, useState } from 'react';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { Toaster } from '@/components/ui/sonner';
-import { createQueryClient } from '@/config/query.config';
-import { globalCSRSettings } from '@/config/client-render.config';
+import type React from "react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { NextIntlClientProvider } from "next-intl"
+
+// Create a QueryClient instance outside the component to avoid re-creation on re-renders
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      refetchOnWindowFocus: false,
+    },
+  },
+})
 
 interface ProvidersProps {
-  children: ReactNode;
+  children: React.ReactNode
+  messages: Record<string, string> // Type for messages
+  locale: string
 }
 
-export function Providers({ children }: ProvidersProps) {
-  // Create query client instance
-  const [queryClient] = useState(() => createQueryClient());
-
+export function Providers({ children, messages, locale }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <Toaster 
-        position={globalCSRSettings.notifications.position}
-        duration={globalCSRSettings.notifications.duration}
-        closeButton={globalCSRSettings.notifications.closeButton}
-        richColors={globalCSRSettings.notifications.richColors}
-      />
-      <ReactQueryDevtools initialIsOpen={false} />
+      <NextIntlClientProvider messages={messages} locale={locale} timeZone="UTC">
+        {children}
+      </NextIntlClientProvider>
     </QueryClientProvider>
-  );
+  )
 }

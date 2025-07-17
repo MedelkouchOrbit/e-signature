@@ -1,25 +1,22 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
-import { Providers } from './providers';
-
-const inter = Inter({ subsets: ['latin'] });
+import type React from "react"
+import type { Metadata } from "next"
+import "./globals.css" // Import global CSS here
 
 export const metadata: Metadata = {
-  title: 'My App',
-  description: 'Next.js app with CSR configuration',
-};
+  title: "E-Signatures Made Simple for Growing Teams | DocuSign",
+  description:
+    "From contracts to NDAs, sign and send documents with just a few clicks—no technical setup required. Experience faster, smarter and more beautiful e-signature solutions.",
+  keywords: ["e-signature", "digital signature", "document signing", "business tools", "collaboration"],
+}
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <Providers>{children}</Providers>
-      </body>
+      <body>{children}</body>
     </html>
-  );
+  )
 }

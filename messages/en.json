@@ -1,0 +1,189 @@
+{
+  "navigation": {
+    "features": "Features",
+    "benefits": "Benefits",
+    "pricing": "Pricing",
+    "contactUs": "Contact Us",
+    "signIn": "Sign In",
+    "freeTrial": "Free Trial",
+    "language": "Language",
+    "ecological": "Ecological Impact"
+  },
+  "hero": {
+    "title": "E-Signatures Made Simple for Growing Teams",
+    "subtitle": "From contracts to NDAs, sign and send documents with just a few clicks—no technical setup required.",
+    "description": "A 10x better signing experience. Faster, smarter and more beautiful.",
+    "descriptionText": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.",
+    "rating": "rating",
+    "signedPapers": "Signed Papers",
+    "requestSignature": "Request Signature",
+    "send": "Send",
+    "analyticsDashboard": "Analytics Dashboard"
+  },
+  "features": {
+    "title": "Our Features",
+    "subtitle": "We offer a variety of interesting features that you can help increase your productivity at work and manage your documents easily",
+    "getStarted": "Get Started",
+    "collaborationTeams": {
+      "title": "Collaboration Teams",
+      "description": "Here you can handle projects together with team virtually"
+    },
+    "cloudStorage": {
+      "title": "Cloud Storage",
+      "description": "No need to worry about storage because we provide storage up to 2 TB"
+    },
+    "organizedDocuments": {
+      "title": "Organized Documents",
+      "description": "We always provide useful information to make it easier for you every day"
+    }
+  },
+  "benefits": {
+    "title": "What Benefits Will You Get",
+    "benefit1": "Lorem ipsum dolor sit amet, consectetur",
+    "benefit2": "Lorem ipsum dolor sit amet, consectetur",
+    "benefit3": "Lorem ipsum dolor sit amet, consectetur",
+    "benefit4": "Lorem ipsum dolor sit amet, consectetur",
+    "benefit5": "Lorem ipsum dolor sit amet, consectetur",
+    "uploadDocument": {
+      "title": "Upload Document",
+      "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt..."
+    },
+    "requestSignature": {
+      "title": "Request Signature",
+      "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt..."
+    },
+    "signIt": {
+      "title": "Sign it",
+      "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt..."
+    },
+    "pleaseSignHere": "Please Sign Here",
+    "totalAmount": "Total Amount",
+    "signedSuccessfully": "Signed Successfully"
+  },
+  "ecological": {
+    "title": "Real-Time Ecological Savings",
+    "subtitle": "Electronic Signatures",
+    "description": "Automatic environmental impact tracking with systematic data updates. No manual refresh needed!",
+    "signRequests": "sign requests",
+    "sheetsPerDoc": "sheets/doc",
+    "totalContacts": "total contacts",
+    "paperSavings": "Paper Savings",
+    "water": "Water",
+    "wood": "Wood",
+    "carbonEmissions": "Carbon Emissions",
+    "waste": "Waste",
+    "energy": "Energy",
+    "units": {
+      "paperSaved": "sheets of paper saved",
+      "waterSaved": "L of water saved",
+      "woodSaved": "kg of wood saved",
+      "carbonReduced": "kg of CO² reduced",
+      "wastePrevented": "kg of waste prevented",
+      "energySaved": "kWh of energy saved"
+    },
+    "comparisons": {
+      "shower": "shower",
+      "showers": "showers",
+      "tree": "tree",
+      "trees": "trees",
+      "gasLiters": "L of gas fuel",
+      "can": "can",
+      "cans": "cans",
+      "hour": "hour",
+      "hours": "hours",
+      "computerUse": "of computer use"
+    },
+    "systemTitle": "Systematic Environmental Tracking",
+    "autoUpdated": "Auto-Updated",
+    "systemDescription": "Data automatically syncs from your e-signature platform using systematic cron jobs. Calculations based on",
+    "calculationTitle": "Automatic Calculation:",
+    "calculationFormula": "Sign requests × Document sheets × (Contacts to sign + Contacts in copy) = Total pages saved",
+    "pageWeight": "Each page weighs 0.005 kg",
+    "current": "Current",
+    "pagesSaved": "pages",
+    "kgSaved": "kg saved",
+    "systemFeatures": "System Features:",
+    "feature1": "• Automatic data sync every 30 seconds",
+    "feature2": "• Retry logic with error handling",
+    "feature3": "• Real-time status monitoring",
+    "feature4": "• Configurable sync intervals",
+    "viewSource": "View Calculation Source",
+    "systematicUpdates": "Systematic Updates",
+    "retryConnection": "Retry Connection",
+    "unableToLoad": "Unable to Load Environmental Data"
+  },
+  "pricing": {
+    "title": "Choose Plan That's Right For You",
+    "subtitle": "Choose plan that works best for you, feel free to contact us",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "free": {
+      "name": "Free",
+      "description": "Have a go and test your superpowers",
+      "features": ["2 Users", "2 Files", "Public Share & Comments", "Chat Support", "New income apps"],
+      "button": "Sign up for free"
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "Experiment the power of infinite possibilities",
+      "features": [
+        "4 Users",
+        "All apps",
+        "Unlimited editable exports",
+        "Folders and collaboration",
+        "All incoming apps"
+      ],
+      "button": "Go to pro",
+      "badge": "Save $50 a year"
+    },
+    "business": {
+      "name": "Business",
+      "description": "Unveil new superpowers and join the Design League",
+      "features": [
+        "All the features of pro plan",
+        "Account success Manager",
+        "Single Sign-On (SSO)",
+        "Co-conception pogram",
+        "Collaboration-Soon"
+      ],
+      "button": "Go to Business"
+    }
+  },
+  "contact": {
+    "title": "Get in Touch with Us",
+    "getStarted": "Get Started",
+    "email": "Email",
+    "emailPlaceholder": "Enter your email",
+    "message": "Message",
+    "messagePlaceholder": "Enter your message",
+    "requestDemo": "Request Demo",
+    "or": "or",
+    "startFreeTrial": "Start Free Trial"
+  },
+  "footer": {
+    "companyName": "WatiqaSign",
+    "description": "Get started now try our product",
+    "emailPlaceholder": "Enter your email here",
+    "support": "Support",
+    "helpAndSolution": "Help and Solution",
+    "product": "Product",
+    "supportLinks": ["Help centre", "Account information", "About", "Contact us"],
+    "helpLinks": ["Talk to support", "Support docs", "System status"],
+    "productLinks": ["Update", "Security", "Pricing product"],
+    "copyright": "Copyright and rights reserved",
+    "terms": "Terms and Conditions",
+    "privacy": "Privacy Policy"
+  },
+  "sync": {
+    "syncing": "Syncing...",
+    "syncError": "Sync Error",
+    "autoSyncActive": "Auto-Sync Active",
+    "autoSyncPaused": "Auto-Sync Paused",
+    "never": "Never",
+    "now": "Now",
+    "lastSync": "Last sync",
+    "syncs": "Syncs",
+    "errors": "Errors",
+    "next": "Next"
+  }
+}
