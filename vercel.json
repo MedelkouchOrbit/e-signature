@@ -15,7 +15,7 @@
   "crons": [
     {
       "path": "/api/cron/sync-environmental-data",
-      "schedule": "*/30 * * * * *"
+      "schedule": "* * * * *"
     }
   ]
 }
