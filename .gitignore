@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
+.env.development
+.env.staging
+.env.production
 
 # vercel
 .vercel
@@ -39,3 +43,79 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Sensitive files and credentials
+# API keys and secrets
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+secrets.json
+config/secrets.js
+config/credentials.js
+
+# Database and backend configurations
+database.json
+db-config.json
+backend-config.json
+server-config.json
+api-endpoints.json
+backend-urls.json
+server-endpoints.json
+
+# Authentication and OAuth
+auth-config.json
+oauth-secrets.json
+jwt-secrets.json
+session-secrets.json
+
+# Third-party service configurations
+opensign-config.json
+parse-server-config.json
+mongodb-config.json
+aws-config.json
+firebase-config.json
+
+# OpenSign specific files
+.env.opensign
+opensign-credentials.json
+opensign-secrets.json
+
+# Log files with potential sensitive data
+*.log
+logs/
+error.log
+access.log
+debug.log
+
+# Test files that might contain sensitive data
+test-credentials.json
+test-config.json
+test-endpoints.json
+test-secrets.json
+
+# Backup files that might contain sensitive data
+*.backup
+*.bak
+*.tmp
+*.swp
+*.swo
+*~
+
+# IDE and editor files that might contain sensitive paths
+.vscode/settings.json
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
