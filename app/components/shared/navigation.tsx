@@ -3,7 +3,7 @@
 import { usePathname } from "@/app/i18n/navigation"
 import LandingNavigation from "./landing-navigation"
 import AuthNavigation from "./auth-navigation"
-import DashboardNavigation from "./dashboard-navigation"
+import MainNavigation from "./main-navigation"
 
 export default function Navigation() {
   const pathname = usePathname()
@@ -39,7 +39,7 @@ export default function Navigation() {
     case 'auth':
       return <AuthNavigation />
     case 'dashboard':
-      return <DashboardNavigation />
+      return <MainNavigation />
     case 'landing':
     default:
       return <LandingNavigation />

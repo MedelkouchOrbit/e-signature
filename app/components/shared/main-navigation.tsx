@@ -8,7 +8,7 @@ import { useAuthStore } from "@/app/lib/auth/auth-store"
 import { useLanguageSwitch } from "@/app/hooks/use-language-switch"
 import { useState, useRef, useEffect } from "react"
 
-export default function DashboardNavigation() {
+export default function MainNavigation() {
   const router = useRouter()
   const { logout, user } = useAuthStore()
   const { switchLocale, currentLanguageLabel } = useLanguageSwitch()
@@ -64,7 +64,7 @@ export default function DashboardNavigation() {
             variant="outline"
             size="sm"
             className="border-white/30 text-white bg-transparent hover:bg-white/10 rounded-full"
-            onClick={() => switchLocale("DashboardNavigation")}
+            onClick={() => switchLocale("MainNavigation")}
           >
             <Globe className="w-4 h-4 mr-1 rtl:mr-0 rtl:ml-1" />
             {currentLanguageLabel}
@@ -98,7 +98,7 @@ export default function DashboardNavigation() {
                 </button>
                 
                 <button 
-                  onClick={() => switchLocale("DashboardNavigation-Dropdown")}
+                  onClick={() => switchLocale("MainNavigation-Dropdown")}
                   className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                 >
                   <Globe className="w-4 h-4" />
