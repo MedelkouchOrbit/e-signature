@@ -26,7 +26,11 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       logout: () => {
-        set({ isAuthenticated: false, user: null, token: null })
+        set({ 
+          isAuthenticated: false, 
+          user: null, 
+          token: null
+        })
         // Also clear session token from localStorage and cookies
         if (typeof window !== 'undefined') {
           localStorage.removeItem('opensign_session_token')

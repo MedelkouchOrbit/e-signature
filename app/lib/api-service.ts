@@ -1,4 +1,4 @@
-import { API_BASE_URL, API_OPENSIGN_URL, OPENSIGN_APP_ID } from "@/app/lib/constants";
+import { API_BASE_URL, API_OPENSIGN_URL, OPENSIGN_APP_ID } from "./constants";
 
 // Generic API error class
 export class ApiError extends Error {

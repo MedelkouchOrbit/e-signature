@@ -17,7 +17,16 @@ export default async function middleware(request: NextRequest) {
     '/contact',
     '/terms',
     '/privacy',
-    '/about'
+    '/about',
+    '/test-pdf', // Add test PDF route
+    '/test-pdf-direct', // Direct PDF test route
+    '/test-status', // PDF status check route
+    '/test-complete', // Complete PDF test with signatures
+    // Keep some localized routes that still exist
+    '/تسجيل-الدخول',
+    '/تسجيل-العضوية',
+    '/اتصل-بنا',
+    '/حول'
   ]
   
   // Define static/system routes to ignore
@@ -43,7 +52,8 @@ export default async function middleware(request: NextRequest) {
   }
   
   // Remove locale prefix to check the actual route (e.g., /en/dashboard -> /dashboard)
-  const pathWithoutLocale = pathname.replace(/^\/(en|ar)/, '') || '/'
+  // Also decode URL-encoded characters for Arabic routes
+  const pathWithoutLocale = decodeURIComponent(pathname.replace(/^\/(en|ar)/, '')) || '/'
   
   // Special handling for root paths
   const isRootPath = pathname === '/' || pathname === '/en' || pathname === '/ar'
@@ -97,10 +107,10 @@ export default async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Match only internationalized pathnames, exclude static assets
+  // Match only internationalized pathnames, exclude static assets and test routes
   matcher: [
-    // Include all paths except static assets and API routes
-    '/((?!api|_next/static|_next/image|favicon.ico|images|.*\\.).*)',
+    // Include all paths except static assets, API routes, and test routes
+    '/((?!api|_next/static|_next/image|favicon.ico|images|test-pdf|test-pdf-direct|test-status|test-complete|.*\\.).*)',
     // Include root path
     '/',
     // Include specific localized paths

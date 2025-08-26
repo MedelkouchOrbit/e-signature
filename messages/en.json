@@ -16,7 +16,8 @@
     "companyName": "WatiqaSign",
     "description": "Secure, eco-friendly digital signature solutions for modern businesses. Streamline your document workflow while reducing environmental impact.",
     "emailPlaceholder": "Enter your email",
-    "support": "Support",
+    "support": "Support"
+  ,
     "helpAndSolution": "Help & Solution",
     "product": "Product",
     "supportLinks": [
@@ -136,6 +137,76 @@
         "Collaboration-Soon"
       ],
       "button": "Go to Business"
+    },
+    "subscriptionPopup": {
+      "title": "Subscribe to {plan}?",
+      "description": "You're about to subscribe to the {plan} plan for ${price}/month",
+      "confirmButton": "Confirm Subscription",
+      "cancelButton": "Cancel"
+    },
+    "currentPlan": "Current Plan",
+    "currentSubscription": "Currently subscribed to {plan} plan",
+    "savePerYearAmount": "Save $80 a year"
+  },
+  "billing": {
+    "title": "Billing & Subscription",
+    "subtitle": "Manage your subscription and view billing history",
+    "currentSubscription": "Current Subscription",
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "month": "month",
+    "upgradeButton": "Upgrade Plan",
+    "subscribedOn": "Subscribed On",
+    "renewsOn": "Renews On",
+    "planFeatures": "Plan Features",
+    "billingHistory": "Billing History",
+    "subscription": "Subscription",
+    "downloadInvoice": "Download",
+    "noBillingHistory": "No billing history available",
+    "availablePlans": "Available Plans",
+    "availablePlansDescription": "Compare and switch between different subscription plans",
+    "current": "Current",
+    "upgrade": "Upgrade",
+    "downgrade": "Downgrade to Free",
+    "cancelSubscription": "Cancel Subscription",
+    "cancelDescription": "Cancel your subscription and downgrade to the free plan",
+    "cancelButton": "Cancel Subscription",
+    "cancelConfirmation": "Are you sure you want to cancel your subscription? You will be downgraded to the free plan.",
+    "plans": {
+      "free": {
+        "name": "Free",
+        "description": "Perfect for getting started",
+        "features": [
+          "2 Users",
+          "2 Documents per month",
+          "Basic templates",
+          "Email support"
+        ]
+      },
+      "pro": {
+        "name": "Pro",
+        "description": "Best for growing teams",
+        "features": [
+          "10 Users",
+          "Unlimited documents",
+          "Advanced templates",
+          "Priority support",
+          "Team collaboration"
+        ]
+      },
+      "business": {
+        "name": "Business",
+        "description": "For large organizations",
+        "features": [
+          "Unlimited users",
+          "Advanced security",
+          "Custom branding",
+          "API access",
+          "Dedicated support"
+        ]
+      }
     }
   },
   "hero": {
@@ -521,5 +592,503 @@
     "excludeAnyOfOur": "exclude any of our or your liabilities that may not be excluded under applicable law.",
     "theLimitations": "The limitations and prohibitions of liability set in this Section and elsewhere in this disclaimer: (a) are subject to the preceding paragraph; and (b) govern all liabilities arising under the disclaimer, including liabilities arising in contract, in tort and for breach of statutory duty.",
     "asLongAs": "As long as the website and the information and services on the website are provided free of charge, we will not be liable for any loss or damage of any nature."
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "documents": "Documents",
+    "templates": "Templates",
+    "bulkSend": "Bulk Send",
+    "team": "Team",
+    "reports": "Reports",
+    "api": "API",
+    "others": "Others",
+    "settings": "Settings",
+    "helpFeedback": "Help & feedback"
+  },
+  "documents": {
+    "title": "Documents",
+    "createDocument": "Create Document",
+    "upload": "Upload",
+    "uploadDocument": "Upload Document",
+    "uploadDescription": "Drag & drop your document here",
+    "selectFile": "Select File",
+    "design": "Design",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "sign": "Sign",
+    "signDocument": "Sign Document",
+    "confirmSignature": "You are about to finish signing Document.pdf. Are you sure you want to sign it?",
+    "requestSignaturePlace": "Request signature place here",
+    "allDocuments": "All",
+    "waiting": "Waiting",
+    "signed": "Signed",
+    "drafted": "Draft",
+    "inbox": "Inbox",
+    "filter": "Filter",
+    "advancedFilter": "Advanced Filter",
+    "title_column": "Title",
+    "sender": "Sender",
+    "receiver": "Receiver",
+    "received": "Received", 
+    "action": "Action",
+    "share": "Share",
+    "edit": "Edit",
+    "signNow": "Sign now",
+    "remind": "Remind",
+    "download": "Download",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "resend": "Resend",
+    "shareTo": "Share to:",
+    "status": {
+      "waiting": "Waiting",
+      "signed": "Signed", 
+      "drafted": "Drafted"
+    },
+    "tooltip": {
+      "signed": "Signed",
+      "waiting": "Waiting"
+    },
+    "upload_success": "Document uploaded successfully",
+    "upload_error": "Failed to upload document",
+    "sign_success": "Document signed successfully",
+    "sign_error": "Failed to sign document",
+    "filter_by_status": "Filter by status",
+    "search_placeholder": "Search documents...",
+    "no_documents": "No documents found",
+    "everyone_has_signed": "Everyone has signed",
+    "you_just_signed": "You just signed \"{documentName}\"",
+    "you_will_receive_email": "You will receive an email copy of the signed document.",
+    "document_name": "Document name",
+    "add_document": "Add document"
+  },
+  "navbar": {
+    "notifications": "Notifications",
+    "profile": "Profile",
+    "viewProfile": "View Profile",
+    "switchTo": "Switch to",
+    "logout": "Logout",
+    "english": "English",
+    "arabic": "العربية",
+    "subscribe": "Subscribe",
+    "upgrade": "Upgrade Plan",
+    "billing": "Billing"
+  },
+  "templates": {
+    "title": "Templates",
+    "subtitle": "Create and manage document templates for efficient signing workflows",
+    "createTemplate": "Create Template",
+    "searchPlaceholder": "Search templates...",
+    "filterByStatus": "Status: {status}",
+    "allTemplates": "All Templates",
+    "active": "Active",
+    "archived": "Archived",
+    "draft": "Draft",
+    "loading": "Loading templates...",
+    "error": "Error loading templates",
+    "tryAgain": "Try Again",
+    "noTemplatesFound": "No templates found",
+    "noTemplatesMessage": "No templates found. Create your first template to get started.",
+    "noSearchResults": "No templates match your search criteria",
+    "templatesCount": "{count} Template",
+    "templatesCountPlural": "{count} Templates",
+    "table": {
+      "name": "Name",
+      "description": "Description", 
+      "status": "Status",
+      "signers": "Signers",
+      "created": "Created",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "status": {
+      "active": "Active",
+      "archived": "Archived", 
+      "draft": "Draft"
+    },
+    "actions": {
+      "preview": "Preview",
+      "view": "View",
+      "edit": "Edit", 
+      "duplicate": "Duplicate",
+      "archive": "Archive",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "back": "Back",
+      "next": "Next",
+      "uploading": "Uploading..."
+    },
+    "deleteConfirmation": "Are you sure you want to delete this template?",
+    "messages": {
+      "deleteSuccess": "Template deleted successfully",
+      "deleteFailed": "Failed to delete template",
+      "duplicateSuccess": "Template duplicated successfully", 
+      "duplicateFailed": "Failed to duplicate template",
+      "loadFailed": "Failed to load templates",
+      "uploadSuccess": "Document uploaded successfully"
+    },
+    "noDescription": "No description",
+    "noSigners": "No signers",
+    "create": {
+      "uploadDocument": "Upload Document",
+      "uploadDocumentDescription": "Upload a PDF document to create your template",
+      "templateName": "Template Name",
+      "templateNamePlaceholder": "Enter template name...",
+      "description": "Description",
+      "descriptionPlaceholder": "Enter template description (optional)...",
+      "document": "Document",
+      "dragDropFile": "Drag and drop your PDF file here",
+      "or": "or",
+      "browseFiles": "browse files",
+      "supportedFormats": "Supported formats: PDF (max 25MB)",
+      "templateSettings": "Template Settings",
+      "sendInOrder": "Send for signature in order",
+      "sendInOrderDescription": "Recipients will receive the document in the order they are listed",
+      "enableOtp": "Enable OTP verification",
+      "enableOtpDescription": "Signers will need to verify their identity with a one-time password",
+      "stepTwoTitle": "Add Signers",
+      "stepTwoDescription": "Add people who need to sign this document",
+      "errors": {
+        "fileRequired": "Please upload a document before proceeding to the next step."
+      },
+      "steps": {
+        "addSigners": {
+          "title": "Step 2: Add Signers",
+          "templateName": "Template",
+          "placeholder": "Add Signers functionality will be implemented here",
+          "description": "Proceed to add signers to your template"
+        },
+        "placeFields": {
+          "title": "Place Fields",
+          "nextButton": "Next: Place Fields"
+        },
+        "review": {
+          "title": "Review & Save"
+        },
+        "comingSoon": {
+          "title": "Step {step} - Coming Soon",
+          "description": "This step will be implemented next",
+          "nextSteps": "Next implementation steps"
+        }
+      }
+    },
+    "createSteps": {
+      "upload": "Add Document",
+      "addSigners": "Add Signers",
+      "placeFields": "Place Fields",
+      "review": "Review & Finish"
+    },
+    "signers": {
+      "none": "No signers",
+      "single": "1 signer", 
+      "multiple": "{count} signers",
+      "title": "Add Signers",
+      "description": "Add the people who will sign the document.",
+      "sendInOrder": "Send in Order",
+      "sendInOrderDescription": "Signers must sign in the specified order. Each signer can only sign after the previous one completes.",
+      "noSigners": "No signers added",
+      "noSignersDescription": "Add signers from the assignees above or create custom ones.",
+      "addSigner": "Add Signer",
+      "role": "Role",
+      "name": "Name",
+      "email": "Email",
+      "optional": "optional",
+      "selectRole": "Select role",
+      "namePlaceholder": "Enter signer name",
+      "emailPlaceholder": "Enter email address",
+      "assignees": {
+        "title": "Available Assignees",
+        "searchPlaceholder": "Search contacts by name or email...",
+        "addNewContact": "Add New Contact",
+        "loadingContacts": "Loading contacts...",
+        "noContactsFound": "No contacts found. Add a new contact above.",
+        "showMore": "+{count} more",
+        "createContact": {
+          "title": "Add New Contact",
+          "namePlaceholder": "Full Name",
+          "emailPlaceholder": "Email",
+          "phonePlaceholder": "Phone (optional)",
+          "addAndAssign": "Add & Assign",
+          "adding": "Adding...",
+          "cancel": "Cancel",
+          "success": "Contact created and assigned successfully",
+          "error": "Failed to create contact",
+          "duplicate": "Contact already exists",
+          "validation": {
+            "nameRequired": "Name is required",
+            "emailRequired": "Email is required",
+            "emailInvalid": "Please enter a valid email address",
+            "nameTooLong": "Name cannot exceed 100 characters",
+            "emailTooLong": "Email cannot exceed 100 characters"
+          }
+        },
+        "contactTooltip": "{name}<br />{email}",
+        "alreadyAssigned": "Already assigned as signer",
+        "clickToAssign": "Click to add as signer"
+      },
+      "selectedSigners": "Selected Signers",
+      "signerOrder": "Signer {order}",
+      "waitingForPrevious": "Waiting for previous signer",
+      "canSignNow": "Can sign now",
+      "signingComplete": "Signing complete",
+      "reorderInstructions": "Drag to reorder signers",
+      "removeFromSigning": "Remove from signing order"
+    },
+    "errors": {
+      "nameRequired": "Template name is required",
+      "nameTooLong": "Template name cannot exceed 100 characters",
+      "fileRequired": "Please select a PDF file",
+      "invalidFileType": "Only PDF files are supported",
+      "fileTooLarge": "File size cannot exceed 25MB",
+      "uploadFailed": "Failed to upload template"
+    }
+  },
+  "bulkSend": {
+    "title": "Bulk Send",
+    "subtitle": "Send documents to multiple recipients at once using templates",
+    "createBulkSend": "Create Bulk Send",
+    "searchPlaceholder": "Search bulk sends...",
+    "filterByStatus": "Status: {status}",
+    "allBulkSends": "All Bulk Sends",
+    "loading": "Loading bulk sends...",
+    "error": "Error loading bulk sends",
+    "tryAgain": "Try Again",
+    "noBulkSendsFound": "No bulk sends found",
+    "noBulkSendsMessage": "No bulk sends found. Create your first bulk send to get started.",
+    "noSearchResults": "No bulk sends match your search criteria",
+    "table": {
+      "name": "Name",
+      "template": "Template",
+      "status": "Status",
+      "recipients": "Recipients",
+      "progress": "Progress",
+      "created": "Created",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "status": {
+      "draft": "Draft",
+      "sending": "Sending",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "actions": {
+      "send": "Send",
+      "view": "View",
+      "edit": "Edit",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "cancel": "Cancel"
+    },
+    "deleteConfirmation": "Are you sure you want to delete this bulk send?",
+    "sendConfirmation": "Are you sure you want to send this bulk send to all recipients?",
+    "messages": {
+      "sendSuccess": "Bulk send initiated successfully",
+      "sendFailed": "Failed to send bulk send",
+      "deleteSuccess": "Bulk send deleted successfully",
+      "deleteFailed": "Failed to delete bulk send",
+      "loadFailed": "Failed to load bulk sends",
+      "createSuccess": "Bulk send created successfully",
+      "createFailed": "Failed to create bulk send"
+    },
+    "create": {
+      "title": "Create Bulk Send",
+      "selectTemplate": "Select Template",
+      "selectTemplatePlaceholder": "Choose a template for your bulk send",
+      "bulkSendName": "Bulk Send Name",
+      "bulkSendNamePlaceholder": "Enter bulk send name...",
+      "addSigners": "Add Signers",
+      "addSignersDescription": "Add the people who will sign the document.",
+      "sendInOrder": "Send in Order",
+      "sendInOrderDescription": "Recipients will receive the document in the order they are listed. Each recipient must sign before the next one can receive the document.",
+      "message": "Message (Optional)",
+      "messagePlaceholder": "Add a personal message to recipients...",
+      "noTemplateSelected": "Please select a template first",
+      "noSignersAdded": "Please add at least one signer",
+      "errors": {
+        "nameRequired": "Bulk send name is required",
+        "templateRequired": "Please select a template",
+        "signersRequired": "At least one signer is required",
+        "duplicateEmails": "Duplicate email addresses are not allowed",
+        "invalidEmail": "Please enter valid email addresses for all signers"
+      }
+    },
+    "signers": {
+      "title": "Signers",
+      "addSigner": "Add Signer",
+      "name": "Name",
+      "email": "Email",
+      "role": "Role",
+      "order": "Order",
+      "status": "Status",
+      "namePlaceholder": "Enter signer name",
+      "emailPlaceholder": "Enter email address",
+      "selectRole": "Select role",
+      "removeSignerConfirmation": "Are you sure you want to remove this signer?",
+      "reorderInstructions": "Drag to reorder signers when 'Send in Order' is enabled",
+      "signerStatuses": {
+        "pending": "Pending",
+        "sent": "Sent",
+        "viewed": "Viewed",
+        "signed": "Signed",
+        "declined": "Declined",
+        "expired": "Expired"
+      },
+      "orderNumbers": {
+        "first": "1st",
+        "second": "2nd", 
+        "third": "3rd",
+        "other": "{order}th"
+      },
+      "validation": {
+        "nameRequired": "Name is required",
+        "emailRequired": "Email is required",
+        "emailInvalid": "Please enter a valid email address",
+        "roleRequired": "Role is required"
+      }
+    },
+    "progress": {
+      "sent": "{sent} of {total} sent",
+      "completed": "{completed} of {total} completed",
+      "pending": "{pending} pending",
+      "failed": "{failed} failed"
+    }
+  },
+  "team": {
+    "title": "Team Members",
+    "subtitle": "Manage your team members and their roles",
+    "addTeamMember": "Add Team Member",
+    "searchPlaceholder": "Search team members...",
+    "loading": "Loading team members...",
+    "error": "Error loading team members",
+    "tryAgain": "Try Again",
+    "noTeamMembers": "No team members found",
+    "noTeamMembersMessage": "No team members found. Add your first team member to get started.",
+    "noOrganization": "Organization Setup Required",
+    "noOrganizationMessage": "Teams functionality requires organization setup. Please contact your administrator to set up your organization first.",
+    "noSearchResults": "No team members match your search criteria",
+    "teamMembersCount": "{count} Team Member",
+    "teamMembersCountPlural": "{count} Team Members",
+    "table": {
+      "name": "Name",
+      "position": "Position",
+      "email": "Email",
+      "phoneNumber": "Phone Number",
+      "companyName": "Company Name",
+      "status": "Status",
+      "teams": "Teams",
+      "role": "Role",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "pending": "Pending",
+      "disabled": "Disabled"
+    },
+    "actions": {
+      "view": "View",
+      "edit": "Edit",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "delete": "Delete",
+      "resendInvite": "Resend Invite"
+    },
+    "addMember": {
+      "title": "Add Team Member",
+      "subtitle": "Add a new member to your team",
+      "name": "Full Name",
+      "namePlaceholder": "Enter full name",
+      "firstName": "First Name",
+      "firstNamePlaceholder": "Enter first name",
+      "lastName": "Last Name",
+      "lastNamePlaceholder": "Enter last name",
+      "email": "Email",
+      "emailPlaceholder": "Enter email address",
+      "phone": "Phone",
+      "phonePlaceholder": "Enter phone number",
+      "mobileNumber": "Mobile Number",
+      "mobileNumberPlaceholder": "+1234567890",
+      "companyEmail": "Company Email",
+      "companyEmailPlaceholder": "Enter company email",
+      "jobTitle": "Job Title",
+      "jobTitlePlaceholder": "Enter job title",
+      "role": "Role",
+      "selectRole": "Select role",
+      "team": "Team",
+      "selectTeam": "Select team",
+      "password": "Password",
+      "passwordPlaceholder": "Enter password",
+      "generatePassword": "Generate New",
+      "passwordGenerated": "Password will be auto-generated",
+      "passwordNote": "The password will be sent to the user via email",
+      "create": "Create Member",
+      "creating": "Creating...",
+      "save": "Save",
+      "saving": "Saving...",
+      "cancel": "Cancel",
+      "success": "Team member added successfully",
+      "error": "Failed to add team member",
+      "duplicate": "User with this email already exists",
+      "roles": {
+        "admin": "Admin",
+        "manager": "Manager",
+        "user": "User",
+        "viewer": "Viewer"
+      }
+    },
+    "roles": {
+      "admin": "Admin",
+      "manager": "Manager",
+      "user": "User",
+      "viewer": "Viewer"
+    },
+    "validation": {
+      "firstNameRequired": "First name is required",
+      "lastNameRequired": "Last name is required",
+      "emailRequired": "Email is required",
+      "emailInvalid": "Please enter a valid email address",
+      "jobTitleRequired": "Job title is required",
+      "roleRequired": "Role is required",
+      "teamRequired": "Team is required",
+      "firstNameTooLong": "First name cannot exceed 50 characters",
+      "lastNameTooLong": "Last name cannot exceed 50 characters",
+      "emailTooLong": "Email cannot exceed 100 characters",
+      "jobTitleTooLong": "Job title cannot exceed 100 characters",
+      "phoneInvalid": "Please enter a valid phone number"
+    },
+    "deleteConfirmation": "Are you sure you want to delete this team member?",
+    "deactivateConfirmation": "Are you sure you want to deactivate this team member?",
+    "activateConfirmation": "Are you sure you want to activate this team member?",
+    "messages": {
+      "deleteSuccess": "Team member deleted successfully",
+      "deleteFailed": "Failed to delete team member",
+      "deactivateSuccess": "Team member deactivated successfully",
+      "deactivateFailed": "Failed to deactivate team member",
+      "activateSuccess": "Team member activated successfully",
+      "activateFailed": "Failed to activate team member",
+      "loadFailed": "Failed to load team members",
+      "inviteResent": "Invitation resent successfully"
+    },
+    "filter": {
+      "allMembers": "All Members",
+      "activeMembers": "Active",
+      "inactiveMembers": "Inactive",
+      "pendingMembers": "Pending"
+    },
+    "pagination": {
+      "rowsPerPage": "Rows per page",
+      "page": "Page {current} of {total}",
+      "selected": "{count} of {total} row(s) selected"
+    }
+  },
+  "common": {
+    "back": "Back",
+    "next": "Next",
+    "cancel": "Cancel",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete"
   }
 }

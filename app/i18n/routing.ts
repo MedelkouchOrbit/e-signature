@@ -15,26 +15,29 @@ export const pathnames = {
     en: "/auth/signup",
     ar: "/تسجيل-العضوية",
   },
-  "/features": {
-    en: "/features",
-    ar: "/الميزات",
-  },
-  "/pricing": {
-    en: "/pricing",
-    ar: "/الأسعار",
-  },
   "/contact": {
     en: "/contact",
     ar: "/اتصل-بنا",
   },
-  "/terms": {
-    en: "/terms",
-    ar: "/الشروط",
+  "/auth/terms": {
+    en: "/auth/terms",
+    ar: "/تسجيل-الدخول/الشروط",
   },
-  "/dashboard": {
-    en: "/dashboard",
-    ar: "/لوحة-التحكم",
-  },
+  // Keep these routes simple without localization for now
+  "/features": "/features",
+  "/pricing": "/pricing",
+  "/dashboard": "/dashboard",
+  "/documents": "/documents",
+  "/templates": "/templates",
+  "/bulk-send": "/bulk-send",
+  "/team": "/team",
+  "/reports": "/reports",
+  "/api": "/api",
+  "/others": "/others",
+  "/settings": "/settings",
+  "/settings/billing-info": "/settings/billing-info",
+  "/billing": "/billing",
+  "/help": "/help",
 };
 
 export type Pathnames = keyof typeof pathnames;

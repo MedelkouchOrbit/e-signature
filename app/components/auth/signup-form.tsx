@@ -240,12 +240,12 @@ export function SignupForm() {
               <Checkbox
                 id="terms"
                 checked={termsAccepted}
-                onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                onCheckedChange={(checked: boolean) => setTermsAccepted(checked === true)}
                 className={errors.terms ? "border-red-500" : ""}
               />
               <Label htmlFor="terms" className="text-sm text-gray-600">
                 {t("termsLabel")}{" "}
-                <Link href="/terms" className="text-blue-600 hover:text-blue-800 underline">
+                <Link href="/auth/terms" className="text-blue-600 hover:text-blue-800 underline">
                   {t("termsLink")}
                 </Link>
               </Label>

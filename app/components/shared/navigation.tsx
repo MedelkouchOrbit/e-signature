@@ -17,13 +17,17 @@ export default function Navigation() {
     
     // Dashboard and protected routes
     if (pathname.includes('/dashboard') || 
-        pathname.includes('/billing') || 
+        pathname.includes('/pricing') || 
         pathname.includes('/settings') ||
         pathname.includes('/admin') ||
         pathname.includes('/reports') ||
         pathname.includes('/documents') ||
         pathname.includes('/templates') ||
         pathname.includes('/team') ||
+        pathname.includes('/bulk-send') ||
+        pathname.includes('/api') ||
+        pathname.includes('/others') ||
+        pathname.includes('/help') ||
         pathname.includes('/profile')) {
       return 'dashboard'
     }

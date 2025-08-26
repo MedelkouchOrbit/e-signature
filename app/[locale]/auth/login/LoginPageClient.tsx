@@ -176,7 +176,7 @@ export function LoginPageClient() {
                 <Checkbox
                   id="remember"
                   checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  onCheckedChange={(checked: boolean) => setRememberMe(checked === true)}
                 />
                 <Label htmlFor="remember" className="text-sm text-gray-600">
                   Remember Me

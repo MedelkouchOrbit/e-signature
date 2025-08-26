@@ -7,8 +7,8 @@ const OPENSIGN_MASTER_KEY = process.env.OPENSIGN_MASTER_KEY || ''
 const OPENSIGN_USERNAME = process.env.OPENSIGN_USERNAME || ''
 const OPENSIGN_PASSWORD = process.env.OPENSIGN_PASSWORD || ''
 
-// Possible Parse Server mount paths to try
-const POSSIBLE_MOUNT_PATHS = ['/1', '/api/1', '/parse/1', '/app', '/parse', '/api', '']
+// Possible Parse Server mount paths to try - updated based on testing
+const POSSIBLE_MOUNT_PATHS = ['/1', '/parse', '/api', '/app', '/parse/api', '/api/1', '']
 
 // Cache for session token to avoid multiple login attempts
 let cachedSessionToken: string | null = null
@@ -102,11 +102,23 @@ async function handleRequest(
     const searchParams = request.nextUrl.searchParams.toString()
     const fullPath = searchParams ? `${path}?${searchParams}` : path
     
-    // Read request body once at the beginning
-    let requestBody = ''
+    // Read request body once at the beginning - handle both JSON and FormData
+    let requestBody: string | FormData | null = null
+    let isFormData = false
+    
     if (method === 'POST' || method === 'PUT') {
       try {
-        requestBody = await request.text()
+        const contentType = request.headers.get('content-type') || ''
+        
+        if (contentType.includes('multipart/form-data')) {
+          // Handle file uploads and form data
+          requestBody = await request.formData()
+          isFormData = true
+          console.log('[OpenSign Proxy] Processing multipart/form-data request')
+        } else {
+          // Handle JSON and text data
+          requestBody = await request.text()
+        }
       } catch (error) {
         console.error('Error reading request body:', error)
       }
@@ -122,7 +134,7 @@ async function handleRequest(
       console.log(`[OpenSign Proxy] Trying endpoint: ${targetUrl}`)
 
       try {
-        const response = await attemptRequest(targetUrl, request, method, requestBody)
+        const response = await attemptRequest(targetUrl, request, method, requestBody, isFormData)
         const responseText = await response.text()
         
         // Check if we got HTML (frontend) response
@@ -225,12 +237,15 @@ async function handleRequest(
   }
 }
 
-async function attemptRequest(targetUrl: string, request: NextRequest, method: string, requestBody?: string): Promise<Response> {
+async function attemptRequest(
+  targetUrl: string, 
+  request: NextRequest, 
+  method: string, 
+  requestBody?: string | FormData | null, 
+  isFormData: boolean = false
+): Promise<Response> {
   // Prepare headers
-  const headers: HeadersInit = {
-    'X-Parse-Application-Id': OPENSIGN_APP_ID,
-    'Content-Type': 'application/json',
-  }
+  const headers: HeadersInit = {}
 
   // Copy relevant headers from the original request
   let sessionToken = request.headers.get('X-Parse-Session-Token')
@@ -257,6 +272,9 @@ async function attemptRequest(targetUrl: string, request: NextRequest, method: s
     headers['X-Parse-Session-Token'] = sessionToken
   }
 
+  // Add Parse App ID
+  headers['X-Parse-Application-Id'] = OPENSIGN_APP_ID
+
   // Copy other relevant headers
   const authorization = request.headers.get('Authorization')
   if (authorization) {
@@ -269,16 +287,26 @@ async function attemptRequest(targetUrl: string, request: NextRequest, method: s
     headers['Origin'] = origin
   }
 
+  // Handle content-type based on request type
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json'
+  }
+  // For FormData, let fetch set the content-type automatically with boundary
+
   // Prepare the fetch options
   const fetchOptions: RequestInit = {
     method,
     headers,
+    // Add timeout for file uploads
+    signal: AbortSignal.timeout(120000), // 2 minutes timeout
   }
 
   // Add body for POST, PUT requests
   if ((method === 'POST' || method === 'PUT') && requestBody) {
     fetchOptions.body = requestBody
   }
+
+  console.log(`[OpenSign Proxy] Making ${method} request to ${targetUrl}${isFormData ? ' (FormData)' : ' (JSON)'}`)
 
   // Make the request to OpenSign Parse Server
   return fetch(targetUrl, fetchOptions)

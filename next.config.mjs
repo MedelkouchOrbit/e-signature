@@ -16,6 +16,20 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  webpack: (config, { isServer }) => {
+    // Handle PDF.js worker
+    if (!isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        canvas: false,
+      }
+    }
+    
+    // Copy PDF.js worker files
+    config.resolve.alias['pdfjs-dist/build/pdf.worker.min.js'] = 'pdfjs-dist/build/pdf.worker.min.js'
+    
+    return config
+  },
   async rewrites() {
     return [
       // Proxy OpenSign API functions to hide the real backend URL
