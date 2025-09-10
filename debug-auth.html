@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentication Debug</title>
+</head>
+<body>
+    <h1>Authentication Debug</h1>
+    <div id="output"></div>
+    
+    <script>
+        function debugAuth() {
+            const output = document.getElementById('output');
+            let html = '<h2>Cookie Analysis:</h2>';
+            
+            // Check cookies
+            html += '<h3>Cookies:</h3>';
+            const cookies = document.cookie.split(';');
+            cookies.forEach(cookie => {
+                const [name, value] = cookie.trim().split('=');
+                html += `<p><strong>${name}:</strong> ${value}</p>`;
+            });
+            
+            // Check localStorage
+            html += '<h3>localStorage:</h3>';
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                html += `<p><strong>${key}:</strong> ${value}</p>`;
+            }
+            
+            // Test our utility functions
+            html += '<h3>Utility Function Results:</h3>';
+            
+            // Test session token extraction
+            let sessionToken = null;
+            try {
+                // Check cookies first
+                const cookies = document.cookie.split(';');
+                for (const cookie of cookies) {
+                    const [name, value] = cookie.trim().split('=');
+                    if (name === 'opensign_session_token') {
+                        sessionToken = decodeURIComponent(value);
+                        break;
+                    }
+                }
+                
+                // Fallback to localStorage
+                if (!sessionToken) {
+                    const authData = localStorage.getItem('auth-storage');
+                    if (authData) {
+                        const auth = JSON.parse(authData);
+                        sessionToken = auth.state?.sessionToken || null;
+                    }
+                }
+                
+                if (!sessionToken) {
+                    sessionToken = localStorage.getItem('opensign_session_token');
+                }
+            } catch (e) {
+                html += `<p style="color: red;">Error getting session token: ${e.message}</p>`;
+            }
+            
+            html += `<p><strong>Session Token:</strong> ${sessionToken || 'Not found'}</p>`;
+            
+            // Test user info extraction  
+            let userId = null;
+            let userEmail = null;
+            
+            try {
+                // Try direct storage
+                userId = localStorage.getItem('currentUserId');
+                
+                // Try auth storage
+                const authData = localStorage.getItem('auth-storage');
+                if (authData) {
+                    const auth = JSON.parse(authData);
+                    if (auth.state?.user) {
+                        userEmail = auth.state.user.email;
+                        if (!userId) {
+                            userId = auth.state.user.id;
+                        }
+                    }
+                }
+                
+                // Try opensign_user storage
+                const opensignUser = localStorage.getItem('opensign_user');
+                if (opensignUser) {
+                    const user = JSON.parse(opensignUser);
+                    if (user.email && !userEmail) {
+                        userEmail = user.email;
+                    }
+                    if (user.objectId && !userId) {
+                        userId = user.objectId;
+                    }
+                }
+            } catch (e) {
+                html += `<p style="color: red;">Error getting user info: ${e.message}</p>`;
+            }
+            
+            html += `<p><strong>User ID:</strong> ${userId || 'Not found'}</p>`;
+            html += `<p><strong>User Email:</strong> ${userEmail || 'Not found'}</p>`;
+            
+            // Final authentication status
+            html += '<h3>Authentication Status:</h3>';
+            if (sessionToken && userId) {
+                html += '<p style="color: green;">✅ Authentication OK - Ready for bulk send</p>';
+            } else {
+                html += '<p style="color: red;">❌ Authentication Failed:</p>';
+                html += `<ul>`;
+                html += `<li>Session Token: ${sessionToken ? '✅' : '❌'}</li>`;
+                html += `<li>User ID: ${userId ? '✅' : '❌'}</li>`;
+                html += `</ul>`;
+            }
+            
+            output.innerHTML = html;
+        }
+        
+        // Run debug on page load
+        debugAuth();
+        
+        // Refresh every 5 seconds
+        setInterval(debugAuth, 5000);
+    </script>
+</body>
+</html>

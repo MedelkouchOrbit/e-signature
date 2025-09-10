@@ -185,7 +185,11 @@ function ReceiverTooltip({ document }: { document: Document }) {
             <h4 className="font-medium text-sm">Signers Status</h4>
             {signers.map((signer, index) => (
               <div key={index} className="flex items-center justify-between space-x-4">
-                <span className="text-xs">{signer.Name || signer.Email}</span>
+                <span className="text-xs">
+                  {(signer as { Name?: string; Email?: string })?.Name || 
+                   (signer as { Name?: string; Email?: string })?.Email || 
+                   'Unknown'}
+                </span>
                 <div className="flex items-center space-x-1">
                   {document.status === 'signed' ? (
                     <>

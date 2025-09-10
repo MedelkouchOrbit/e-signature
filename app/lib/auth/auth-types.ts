@@ -5,7 +5,8 @@ export interface UserCredentials {
 
 export interface UserRegistration extends UserCredentials {
   name: string
-  termsAccepted: boolean
+  role: string
+  timezone: string
 }
 
 export interface AuthResponse {
@@ -18,10 +19,19 @@ export interface AuthResponse {
 }
 
 export interface OpenSignLoginResponse {
-  result: {
-    sessionToken: string
-    objectId: string
-    // Add other properties as needed based on the actual response
-    [key: string]: unknown
+  objectId: string
+  username: string
+  email: string
+  name?: string
+  sessionToken: string
+  createdAt: string
+  updatedAt: string
+  ACL?: {
+    [key: string]: {
+      read: boolean
+      write: boolean
+    }
   }
+  // Add other properties as needed based on the actual response
+  [key: string]: unknown
 }

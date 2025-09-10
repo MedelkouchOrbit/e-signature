@@ -91,11 +91,11 @@ export function TeamsManagement() {
     loadTeamsData()
   }, [loadTeamsData])
 
-  const handleCreateTeam = async (teamData: { name: string }) => {
+  const handleCreateTeam = async (teamData: { name: string, selectedMembers: TeamMember[] }) => {
     try {
       console.log('🆕 Creating new team:', teamData)
       
-      const newTeam = await teamsApiService.createTeam(teamData)
+      const newTeam = await teamsApiService.createTeam({ name: teamData.name })
       
       if (newTeam) {
         // Reload teams to get the latest data
@@ -368,6 +368,7 @@ export function TeamsManagement() {
         isOpen={isCreateTeamModalOpen}
         onClose={() => setIsCreateTeamModalOpen(false)}
         onSubmit={handleCreateTeam}
+        organizationMembers={teamMembers}
       />
 
       <AddUserToTeamModal

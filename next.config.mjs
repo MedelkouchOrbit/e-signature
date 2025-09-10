@@ -6,6 +6,15 @@ const withNextIntl = createNextIntlPlugin('./app/i18n/config.ts');
 const nextConfig = {
   experimental: {
     authInterrupts: true, // Enable experimental authInterrupts for forbidden/unauthorized [^1]
+    // Enable experimental features for better request handling
+    serverComponentsExternalPackages: [], // Keep this empty to allow bundling
+  },
+  // Configure API route limits for large requests
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb', // Increase body size limit for PDF uploads
+    },
+    responseLimit: '50mb', // Increase response limit for large API responses
   },
   eslint: {
     ignoreDuringBuilds: true,

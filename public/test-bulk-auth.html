@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bulk Send Authentication Test</title>
+</head>
+<body>
+    <h1>Bulk Send Authentication Test</h1>
+    <div id="output"></div>
+    
+    <button onclick="testAuth()">Test Authentication</button>
+    <button onclick="testBulkSend()">Test Bulk Send Creation</button>
+    
+    <script>
+        // Set the session token cookie for testing
+        document.cookie = 'opensign_session_token=r:6bf15d54b9cced698c47bc431ef63a4a; path=/';
+        
+        async function testAuth() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Testing Authentication...</h2>';
+            
+            try {
+                // Test session token detection
+                let sessionToken = null;
+                const cookies = document.cookie.split(';');
+                for (const cookie of cookies) {
+                    const [name, value] = cookie.trim().split('=');
+                    if (name === 'opensign_session_token') {
+                        sessionToken = decodeURIComponent(value);
+                        break;
+                    }
+                }
+                
+                output.innerHTML += `<p><strong>Session Token:</strong> ${sessionToken || 'Not found'}</p>`;
+                
+                if (sessionToken) {
+                    // Test users/me API
+                    const response = await fetch('/api/proxy/opensign/users/me', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Parse-Application-Id': 'opensign',
+                            'X-Parse-Session-Token': sessionToken,
+                        },
+                    });
+                    
+                    if (response.ok) {
+                        const userData = await response.json();
+                        output.innerHTML += `<p><strong>User Data:</strong> ${JSON.stringify(userData, null, 2)}</p>`;
+                        output.innerHTML += `<p style="color: green;">✅ Authentication Working!</p>`;
+                        output.innerHTML += `<p><strong>User ID:</strong> ${userData.objectId}</p>`;
+                        output.innerHTML += `<p><strong>Email:</strong> ${userData.email}</p>`;
+                    } else {
+                        output.innerHTML += `<p style="color: red;">❌ API Error: ${response.status} ${response.statusText}</p>`;
+                    }
+                } else {
+                    output.innerHTML += `<p style="color: red;">❌ No session token found</p>`;
+                }
+            } catch (error) {
+                output.innerHTML += `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function testBulkSend() {
+            const output = document.getElementById('output');
+            output.innerHTML += '<h2>Testing Bulk Send Creation...</h2>';
+            
+            try {
+                const response = await fetch('/api/bulk-send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        templateId: '7tqAPxOdGB',
+                        name: 'Test Bulk Send',
+                        signers: [
+                            {
+                                name: 'Test Signer',
+                                email: 'test@example.com'
+                            }
+                        ]
+                    })
+                });
+                
+                const result = await response.text();
+                
+                if (response.ok) {
+                    output.innerHTML += `<p style="color: green;">✅ Bulk Send Created Successfully!</p>`;
+                    output.innerHTML += `<p><strong>Response:</strong> ${result}</p>`;
+                } else {
+                    output.innerHTML += `<p style="color: red;">❌ Bulk Send Error: ${response.status}</p>`;
+                    output.innerHTML += `<p><strong>Error:</strong> ${result}</p>`;
+                }
+            } catch (error) {
+                output.innerHTML += `<p style="color: red;">❌ Bulk Send Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Auto-test on load
+        window.onload = testAuth;
+    </script>
+</body>
+</html>

@@ -30,9 +30,46 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDocumentsStore } from "@/app/lib/documents-store-new"
-import { type Document, type DocumentStatus } from "@/app/lib/documents-api-service"
+import { type Document, type DocumentStatus, checkUserSignPermission } from "@/app/lib/documents-api-service"
 import { useToast } from "@/hooks/use-toast"
 import { reminderApiService } from "@/app/lib/reminder-api-service"
+
+// Custom hook to check user permissions for documents
+function useDocumentPermissions(documents: Document[]) {
+  const [permissions, setPermissions] = useState<Map<string, boolean>>(new Map())
+  const [loading, setLoading] = useState<boolean>(false)
+
+  useEffect(() => {
+    async function checkPermissions() {
+      if (documents.length === 0) return
+      
+      setLoading(true)
+      const newPermissions = new Map<string, boolean>()
+      
+      // Check permissions for all waiting documents
+      const waitingDocs = documents.filter(doc => doc.status === 'waiting')
+      
+      await Promise.all(
+        waitingDocs.map(async (doc) => {
+          try {
+            const hasPermission = await checkUserSignPermission(doc)
+            newPermissions.set(doc.objectId, hasPermission)
+          } catch (error) {
+            console.error(`Error checking permission for document ${doc.objectId}:`, error)
+            newPermissions.set(doc.objectId, false)
+          }
+        })
+      )
+      
+      setPermissions(newPermissions)
+      setLoading(false)
+    }
+    
+    checkPermissions()
+  }, [documents])
+
+  return { permissions, loading }
+}
 
 // Helper functions for avatar
 const getInitials = (name: string) => {
@@ -154,6 +191,12 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
       icon: CheckCircle,
       className: "bg-green-100 text-green-800 border-green-200"
     },
+    partially_signed: {
+      label: "Partially Signed",
+      variant: "secondary" as const,
+      icon: Clock,
+      className: "bg-blue-100 text-blue-800 border-blue-200"
+    },
     drafted: {
       label: "Draft",
       variant: "outline" as const,
@@ -195,7 +238,8 @@ function DocumentActionMenu({
   onDuplicate,
   onDelete,
   onSign,
-  onReminder
+  onReminder,
+  userCanSign = false
 }: {
   document: Document
   onShare: (document: Document) => void
@@ -205,6 +249,7 @@ function DocumentActionMenu({
   onDelete: (document: Document) => void
   onSign: (document: Document) => void
   onReminder: (document: Document) => void
+  userCanSign?: boolean
 }) {
   const getActionsByStatus = (status: DocumentStatus, canUserSign: boolean) => {
     if (canUserSign && status === 'waiting') {
@@ -327,7 +372,7 @@ function DocumentActionMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {getActionsByStatus(document.status, document.canUserSign)}
+        {getActionsByStatus(document.status, userCanSign)}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -411,6 +456,15 @@ export function DocumentsTable() {
   // Local state
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
   
+  // Check user permissions for signing documents
+  const { permissions } = useDocumentPermissions(documents)
+  
+  // Helper function to check if user can sign a specific document
+  const canUserSignDocument = useCallback((document: Document) => {
+    if (document.status !== 'waiting') return false
+    return permissions.get(document.objectId) || false
+  }, [permissions])
+  
   // Load documents on mount
   useEffect(() => {
     loadDocuments()
@@ -486,9 +540,31 @@ export function DocumentsTable() {
     }
   }, [deleteDocument, toast])
   
-  const handleSign = useCallback((document: Document) => {
-    router.push(`/documents/${document.objectId}/sign`)
-  }, [router])
+  const handleSign = useCallback(async (document: Document) => {
+    try {
+      // Check if user has permission to sign this document
+      const hasPermission = await checkUserSignPermission(document)
+      
+      if (!hasPermission) {
+        toast({
+          title: "Permission Denied",
+          description: "You do not have permission to sign this document. Only authorized signers can sign.",
+          variant: "destructive"
+        })
+        return
+      }
+      
+      // If permission is granted, navigate to sign page
+      router.push(`/documents/${document.objectId}/sign`)
+    } catch (error) {
+      console.error('Error checking sign permission:', error)
+      toast({
+        title: "Permission Check Error",
+        description: "Could not verify your permission to sign this document. Please try again.",
+        variant: "destructive"
+      })
+    }
+  }, [router, toast])
   
   const handleReminder = useCallback(async (document: Document) => {
     try {
@@ -640,7 +716,7 @@ export function DocumentsTable() {
                             </div>
                             <div className="flex items-center gap-2 mt-1">
                               <StatusBadge status={document.status} />
-                              {document.canUserSign && (
+                              {canUserSignDocument(document) && !document.isCurrentUserCreator && (
                                 <Badge variant="outline" className="text-xs">
                                   Action Required
                                 </Badge>
@@ -718,16 +794,29 @@ export function DocumentsTable() {
                         {formatDate(document.createdAt)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <DocumentActionMenu
-                          document={document}
-                          onShare={handleShare}
-                          onEdit={handleEdit}
-                          onDownload={handleDownload}
-                          onDuplicate={handleDuplicate}
-                          onDelete={handleDelete}
-                          onSign={handleSign}
-                          onReminder={handleReminder}
-                        />
+                        <div className="flex items-center justify-end gap-2">
+                          {canUserSignDocument(document) && document.status === 'waiting' && !document.isCurrentUserCreator && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleSign(document)}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Sign
+                            </Button>
+                          )}
+                          <DocumentActionMenu
+                            document={document}
+                            onShare={handleShare}
+                            onEdit={handleEdit}
+                            onDownload={handleDownload}
+                            onDuplicate={handleDuplicate}
+                            onDelete={handleDelete}
+                            onSign={handleSign}
+                            onReminder={handleReminder}
+                            userCanSign={canUserSignDocument(document)}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -750,7 +839,7 @@ export function DocumentsTable() {
                       
                       <div className="flex items-center gap-2 mb-3">
                         <StatusBadge status={document.status} />
-                        {document.canUserSign && (
+                        {canUserSignDocument(document) && !document.isCurrentUserCreator && (
                           <Badge variant="outline" className="text-xs">
                             Action Required
                           </Badge>
@@ -794,16 +883,29 @@ export function DocumentsTable() {
                       </div>
                     </div>
                     
-                    <DocumentActionMenu
-                      document={document}
-                      onShare={handleShare}
-                      onEdit={handleEdit}
-                      onDownload={handleDownload}
-                      onDuplicate={handleDuplicate}
-                      onDelete={handleDelete}
-                      onSign={handleSign}
-                      onReminder={handleReminder}
-                    />
+                    <div className="flex items-center gap-2">
+                      {canUserSignDocument(document) && document.status === 'waiting' && !document.isCurrentUserCreator && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleSign(document)}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Sign
+                        </Button>
+                      )}
+                      <DocumentActionMenu
+                        document={document}
+                        onShare={handleShare}
+                        onEdit={handleEdit}
+                        onDownload={handleDownload}
+                        onDuplicate={handleDuplicate}
+                        onDelete={handleDelete}
+                        onSign={handleSign}
+                        onReminder={handleReminder}
+                        userCanSign={canUserSignDocument(document)}
+                      />
+                    </div>
                   </div>
                 </Card>
               ))}

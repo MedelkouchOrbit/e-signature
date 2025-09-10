@@ -16,8 +16,8 @@ export function LoginPageClient() {
   const { login } = useAuthStore()
   const t = useTranslations("LoginPage")
   const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [email, setEmail] = useState("admin@admin.com") // Pre-fill admin email for testing
+  const [password, setPassword] = useState("admin@123") // Pre-fill admin password for testing
   const [rememberMe, setRememberMe] = useState(false)
   const [errors, setErrors] = useState({ email: false, password: false })
   const [isLoading, setIsLoading] = useState(false)
@@ -47,17 +47,18 @@ export function LoginPageClient() {
         
         console.log("✅ Login response:", response)
         
-        if (response && response.result && response.result.sessionToken) {
+        if (response && response.sessionToken) {
           console.log("🎉 Login successful, redirecting to dashboard...")
-          console.log("Session token:", response.result.sessionToken)
+          console.log("Session token:", response.sessionToken)
           
           // Update auth store with user data
           login(
             { 
-              id: response.result.objectId || 'user', 
-              email: email 
+              id: response.objectId || 'user', 
+              email: email,
+              name: response.name || response.username
             },
-            response.result.sessionToken
+            response.sessionToken
           )
           
           // Redirect to dashboard on successful login

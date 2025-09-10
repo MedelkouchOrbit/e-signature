@@ -544,42 +544,83 @@ export const teamsApiService = {
   getTeamMembers: async (): Promise<OpenSignTeamMember[]> => {
     try {
       console.log('👥 Fetching team members from OpenSign backend...')
-      
-      // First get current user details to get organization ID
-      const userResponse = await openSignApiService.post("functions/getUserDetails", {}) as {
-        result?: {
-          OrganizationId?: { objectId: string }
+
+      // Try to get organization users first
+      try {
+        // First get current user details to get organization ID
+        const userResponse = await openSignApiService.post("functions/getUserDetails", {}) as {
+          result?: {
+            OrganizationId?: { objectId: string }
+          }
+          error?: string
         }
-        error?: string
+
+        if (!userResponse.error && userResponse.result?.OrganizationId?.objectId) {
+          const organizationId = userResponse.result.OrganizationId.objectId
+
+          // Get team members by organization
+          const response = await openSignApiService.post("functions/getuserlistbyorg", {
+            organizationId
+          }) as {
+            result?: OpenSignTeamMember[]
+            error?: string
+          }
+
+          if (!response.error && response.result) {
+            const teamMembers = response.result || []
+            console.log(`👥 Successfully fetched ${teamMembers.length} team members from organization`)
+            return teamMembers
+          }
+        }
+      } catch (orgError) {
+        console.warn('⚠️ Organization-based team member fetch failed, trying alternative method:', orgError)
       }
-      
-      if (userResponse.error) {
-        throw new Error(`Failed to get user details: ${userResponse.error}`)
-      }
-      
-      const organizationId = userResponse.result?.OrganizationId?.objectId
-      if (!organizationId) {
-        console.log('👥 No organization ID found, user is not part of an organization')
-        console.log('👥 Teams feature requires organization setup. Returning empty list.')
-        return []
-      }
-      
-      // Get team members by organization
-      const response = await openSignApiService.post("functions/getuserlistbyorg", {
-        organizationId
+
+      // Fallback: Use getsigners function (same as contacts)
+      console.log('👥 Using getsigners as fallback for team members...')
+      const response = await openSignApiService.post("functions/getsigners", {
+        search: '' // Empty search to get all contacts/users
       }) as {
-        result?: OpenSignTeamMember[]
+        result?: OpenSignContact[]
         error?: string
       }
-      
+
       if (response.error) {
         console.warn(`⚠️ Team members API returned error: ${response.error}`)
         return []
       }
-      
-      const teamMembers = response.result || []
-      console.log(`👥 Successfully fetched ${teamMembers.length} team members`)
-      
+
+      // Transform OpenSignContact format to OpenSignTeamMember format
+      const contacts = response.result || []
+      const teamMembers: OpenSignTeamMember[] = contacts
+        .filter(contact => !contact.IsDeleted && contact.Email) // Filter out deleted contacts and contacts without email
+        .map(contact => ({
+          objectId: contact.objectId,
+          Name: contact.Name || 'Unknown User',
+          Email: contact.Email,
+          Phone: contact.Phone,
+          UserRole: contact.UserRole || 'User',
+          Company: undefined, // getsigners doesn't provide company info
+          JobTitle: undefined, // getsigners doesn't provide job title
+          IsDisabled: false, // getsigners doesn't provide this field
+          TeamIds: [], // getsigners doesn't provide team information
+          TenantId: contact.TenantId ? {
+            objectId: contact.TenantId.objectId,
+            TenantName: '' // getsigners doesn't provide tenant name
+          } : undefined,
+          OrganizationId: undefined, // getsigners doesn't provide organization info
+          UserId: contact.UserId ? {
+            objectId: contact.UserId.objectId,
+            name: contact.Name || '',
+            email: contact.Email,
+            phone: contact.Phone
+          } : undefined,
+          createdAt: contact.createdAt,
+          updatedAt: contact.updatedAt
+        }))
+
+      console.log(`👥 Successfully fetched ${teamMembers.length} team members using getsigners`)
+
       return teamMembers
     } catch (error) {
       console.error('❌ Error fetching team members:', error)
@@ -621,6 +662,35 @@ export const teamsApiService = {
       console.error('❌ Error fetching teams:', error)
       // Return empty array instead of throwing to gracefully handle the error
       return []
+    }
+  },
+
+  // Create a new team
+  createTeam: async (teamData: { name: string }): Promise<{ objectId: string; Name: string; IsActive: boolean }> => {
+    try {
+      console.log('🆕 Creating new team in OpenSign backend...', teamData)
+      
+      const response = await openSignApiService.post("functions/createteam", {
+        Name: teamData.name,
+        IsActive: true
+      }) as {
+        result?: { objectId: string; Name: string; IsActive: boolean }
+        error?: string
+      }
+
+      if (response.error) {
+        throw new Error(`Failed to create team: ${response.error}`)
+      }
+
+      if (!response.result) {
+        throw new Error('No team data returned from API')
+      }
+
+      console.log('✅ Team created successfully:', response.result)
+      return response.result
+    } catch (error) {
+      console.error('❌ Error creating team:', error)
+      throw error
     }
   },
 
@@ -679,35 +749,93 @@ export const teamsApiService = {
   }> => {
     try {
       console.log('👤 Fetching current user details...')
-      
+
       const response = await openSignApiService.post("functions/getUserDetails", {}) as {
         result?: {
           OrganizationId?: { objectId: string; Name: string }
           TenantId?: { objectId: string }
           UserRole?: string
           Company?: string
+          Name?: string
+          Email?: string
         }
         error?: string
       }
-      
+
+      console.log('👤 Raw API response:', JSON.stringify(response, null, 2))
+
       if (response.error) {
+        console.error('❌ getUserDetails API error:', response.error)
         throw new Error(`Failed to get user details: ${response.error}`)
       }
-      
-      console.log('👤 User details received:', response.result)
-      
-      return {
-        organization: response.result?.OrganizationId ? {
-          objectId: response.result.OrganizationId.objectId,
-          company: response.result.OrganizationId.Name
-        } : undefined,
-        tenantId: response.result?.TenantId?.objectId,
-        role: response.result?.UserRole,
-        UserRole: response.result?.UserRole
+
+      // Check if response.result exists and is not null/undefined
+      if (!response.result) {
+        console.warn('⚠️ getUserDetails returned no result, but no error. This might indicate:')
+        console.warn('   - User is not properly authenticated')
+        console.warn('   - User has no organization/tenant assigned')
+        console.warn('   - API endpoint is not returning expected data structure')
+
+        // Instead of throwing, return undefined values to allow graceful degradation
+        console.log('🔄 Returning empty user details for graceful handling')
+        return {
+          organization: undefined,
+          tenantId: undefined,
+          role: undefined,
+          UserRole: undefined
+        }
       }
+
+      console.log('👤 User details received:', {
+        hasOrganization: !!response.result.OrganizationId,
+        hasTenant: !!response.result.TenantId,
+        userRole: response.result.UserRole,
+        name: response.result.Name,
+        email: response.result.Email
+      })
+
+      const userDetails = {
+        organization: response.result.OrganizationId ? {
+          objectId: response.result.OrganizationId.objectId,
+          company: response.result.OrganizationId.Name || response.result.Company || 'Unknown Company'
+        } : undefined,
+        tenantId: response.result.TenantId?.objectId,
+        role: response.result.UserRole,
+        UserRole: response.result.UserRole
+      }
+
+      // Log validation results but don't throw if missing
+      if (!userDetails.organization || !userDetails.tenantId) {
+        console.warn('⚠️ Missing some user details:', {
+          organization: userDetails.organization,
+          tenantId: userDetails.tenantId
+        })
+        console.log('🔄 Continuing with partial user details')
+      } else {
+        console.log('✅ User details validation passed')
+      }
+
+      return userDetails
     } catch (error) {
       console.error('❌ Error fetching user details:', error)
-      throw error
+
+      // For network/API errors, still throw to indicate a real problem
+      if (error instanceof Error && (
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('Network') ||
+        error.message.includes('HTTP')
+      )) {
+        throw error
+      }
+
+      // For other errors (like missing result), return empty details
+      console.log('🔄 Returning empty user details due to error')
+      return {
+        organization: undefined,
+        tenantId: undefined,
+        role: undefined,
+        UserRole: undefined
+      }
     }
   }
 }

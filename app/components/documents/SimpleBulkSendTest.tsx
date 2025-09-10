@@ -41,22 +41,15 @@ export function SimpleBulkSendTest({ documentId: initialDocId }: SimpleBulkSendT
       const result = await bulkSendSignerService.getBulkSendDocumentInfo(documentId)
       setLastResult(result)
       
-      if (result.success) {
-        toast({
-          title: "Document Info",
-          description: `${result.name} - ${result.isBulkSend ? 'Bulk Send' : 'Regular'} document`,
-        })
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "Failed to get document info",
-          variant: "destructive"
-        })
-      }
-    } catch {
+      // BulkSendDocument has Name property, not name
       toast({
-        title: "Error", 
-        description: "Failed to check document",
+        title: "Document Info",
+        description: `${result.Name} - Document retrieved successfully`,
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to get document info",
         variant: "destructive"
       })
     } finally {
@@ -78,36 +71,30 @@ export function SimpleBulkSendTest({ documentId: initialDocId }: SimpleBulkSendT
     try {
       console.log('🧪 Testing signer addition:', { documentId, signerName, signerEmail, signerPhone })
       
-      const result = await bulkSendSignerService.addSignerToBulkSendDocument(documentId, {
+      await bulkSendSignerService.addSignerToBulkSendDocument(documentId, {
         name: signerName,
         email: signerEmail,
         phone: signerPhone || undefined
       })
       
-      setLastResult(result)
+      // addSignerToBulkSendDocument returns void on success
+      setLastResult({ success: true, message: "Signer added successfully" })
       
-      if (result.success) {
-        toast({
-          title: "Success!",
-          description: `Signer ${signerName} added successfully! Contact ID: ${result.contactId}`,
-        })
-        
-        console.log('✅ Signer added successfully:', result)
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "Failed to add signer",
-          variant: "destructive"
-        })
-        
-        console.error('❌ Failed to add signer:', result)
-      }
+      toast({
+        title: "Success!",
+        description: `Signer ${signerName} added successfully!`,
+      })
+      
+      console.log('✅ Signer added successfully')
       
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to add signer";
+      setLastResult({ success: false, error: errorMessage })
+      
       console.error('❌ Error adding signer:', error)
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: errorMessage,
         variant: "destructive"
       })
     } finally {
@@ -189,18 +176,25 @@ export function SimpleBulkSendTest({ documentId: initialDocId }: SimpleBulkSendT
         </CardContent>
       </Card>
 
-      {lastResult && (
+      {lastResult ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">📊 Last Result</CardTitle>
           </CardHeader>
           <CardContent>
             <pre className="text-sm bg-gray-50 p-3 rounded border overflow-auto">
-              {typeof lastResult === 'string' ? lastResult : JSON.stringify(lastResult, null, 2)}
+              {(() => {
+                if (typeof lastResult === 'string') return lastResult;
+                try {
+                  return JSON.stringify(lastResult, null, 2);
+                } catch {
+                  return 'Error displaying result';
+                }
+              })()}
             </pre>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       <Card className="bg-green-50 border-green-200">
         <CardHeader>

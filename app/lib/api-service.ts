@@ -15,12 +15,17 @@ export class ApiError extends Error {
 // Helper function to get session token safely
 const getSessionToken = (): string => {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem("opensign_session_token") || "";
+  // Try multiple possible token keys for compatibility
+  return localStorage.getItem("accesstoken") || 
+         localStorage.getItem("opensign_session_token") || 
+         "";
 };
 
 // Helper function to set session token safely
 const setSessionToken = (token: string): void => {
   if (typeof window !== 'undefined') {
+    // Set both keys for compatibility
+    localStorage.setItem("accesstoken", token);
     localStorage.setItem("opensign_session_token", token);
   }
 };
@@ -28,6 +33,8 @@ const setSessionToken = (token: string): void => {
 // Helper function to clear session token safely
 const clearSessionToken = (): void => {
   if (typeof window !== 'undefined') {
+    // Clear both keys for compatibility
+    localStorage.removeItem("accesstoken");
     localStorage.removeItem("opensign_session_token");
   }
 };
@@ -38,18 +45,39 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
     let errorMessage = `HTTP error! status: ${response.status}`;
     let errorData: unknown = null;
 
+  try {
+    const responseText = await response.text();
+    
+    // Check if response is HTML (should no longer happen with fixed backend)
+    if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html')) {
+      console.warn('[API] Note: Backend has been fixed, but still received HTML response:', {
+        url: response.url,
+        status: response.status,
+        contentType: response.headers.get('content-type')
+      });
+      throw new ApiError("Unexpected HTML response - backend API may need verification", response.status, {
+        type: 'UNEXPECTED_HTML_RESPONSE',
+        receivedHtml: true,
+        url: response.url,
+        note: 'Backend should now return JSON - please verify API endpoint'
+      });
+    }
+    
+    // Try to parse as JSON
     try {
-      errorData = await response.json();
+      errorData = JSON.parse(responseText);
       if (typeof errorData === 'object' && errorData !== null) {
         const data = errorData as Record<string, unknown>;
         errorMessage = (data.message as string) || (data.error as string) || errorMessage;
       }
     } catch {
-      // If response body is not JSON, use status text
-      errorMessage = response.statusText || errorMessage;
+      // If not JSON, use the text content or status
+      errorMessage = responseText || response.statusText || errorMessage;
     }
-
-    throw new ApiError(errorMessage, response.status, errorData);
+  } catch {
+    // If response body is not readable, use status text
+    errorMessage = response.statusText || errorMessage;
+  }    throw new ApiError(errorMessage, response.status, errorData);
   }
 
   const contentType = response.headers.get("content-type");
@@ -121,15 +149,23 @@ export const openSignApiService = {
       ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:8080/app"
       : API_OPENSIGN_URL;
     
+    const sessionToken = getSessionToken();
+    console.log(`[OpenSign API] GET ${baseUrl}/${path}`);
+    console.log(`[OpenSign API] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+    
     const response = await fetch(`${baseUrl}/${path}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
         "X-Parse-Application-Id": OPENSIGN_APP_ID,
-        "X-Parse-Session-Token": getSessionToken(),
+        "X-Parse-Session-Token": sessionToken,
       },
     });
-    return handleResponse<T>(response);
+    
+    console.log(`[OpenSign API] Response status: ${response.status}`);
+    const result = await handleResponse<T>(response);
+    console.log(`[OpenSign API] Response data:`, result);
+    return result;
   },
 
   post: async <T, D = unknown>(path: string, data: D): Promise<T> => {
@@ -138,16 +174,25 @@ export const openSignApiService = {
       ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:8080/app"
       : API_OPENSIGN_URL;
     
+    const sessionToken = getSessionToken();
+    console.log(`[OpenSign API] POST ${baseUrl}/${path}`);
+    console.log(`[OpenSign API] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+    console.log(`[OpenSign API] Data:`, data);
+    
     const response = await fetch(`${baseUrl}/${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Parse-Application-Id": OPENSIGN_APP_ID,
-        "X-Parse-Session-Token": getSessionToken(),
+        "X-Parse-Session-Token": sessionToken,
       },
       body: JSON.stringify(data),
     });
-    return handleResponse<T>(response);
+    
+    console.log(`[OpenSign API] Response status: ${response.status}`);
+    const result = await handleResponse<T>(response);
+    console.log(`[OpenSign API] Response data:`, result);
+    return result;
   },
 
   put: async <T, D = unknown>(path: string, data: D): Promise<T> => {

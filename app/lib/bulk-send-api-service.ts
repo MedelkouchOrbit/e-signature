@@ -1,5 +1,6 @@
-import { openSignApiService } from './api-service'
 import { bulkSendSignerService } from './bulk-send-signer-service'
+import { openSignApiService } from './api-service'
+import { getCurrentUser, getCurrentSessionToken, getCurrentUserFromApi } from '@/app/lib/utils/current-user'
 
 // Bulk Send interfaces - Updated to work with OpenSign's actual implementation
 export interface BulkSend {
@@ -370,8 +371,38 @@ class BulkSendApiService {
         throw new Error('Template not found')
       }
 
-      // Prepare documents array for batchdocuments function
-      const documents = data.signers.map((signer) => {
+      // Get current user session token and info
+      console.log('🔐 createBulkSend: Starting authentication check...')
+      const sessionToken = getCurrentSessionToken()
+      let currentUser = getCurrentUser()
+      
+      console.log('🔐 Session token:', sessionToken ? sessionToken.substring(0, 10) + '...' : 'null')
+      console.log('🔐 Current user from storage:', currentUser)
+      
+      if (!sessionToken) {
+        console.error('❌ No session token found')
+        throw new Error('User authentication required to create bulk send')
+      }
+
+      // If we don't have user ID from local storage, try to get it from the API
+      if (!currentUser.id) {
+        console.log('📞 User ID not found in local storage, fetching from API...')
+        try {
+          currentUser = await getCurrentUserFromApi()
+          console.log('📞 User from API:', currentUser)
+        } catch (error) {
+          console.error('❌ Could not get user from API:', error)
+        }
+      }
+
+      if (!currentUser.id) {
+        console.error('❌ No user ID available')
+        throw new Error('User ID required to create bulk send')
+      }
+      
+      console.log('✅ Authentication successful:', { sessionToken: sessionToken.substring(0, 10) + '...', userId: currentUser.id })
+
+      const documentsToCreate = data.signers.map((signer) => {
         // Update placeholders with signer information
         const updatedPlaceholders = template.Placeholders?.map((placeholder: Record<string, unknown>) => ({
           ...placeholder,
@@ -385,8 +416,11 @@ class BulkSendApiService {
         })) || []
 
         return {
-          ...template,
           Name: `Bulk Send: ${data.name} - ${signer.name}`,
+          Description: data.message || `Bulk send: ${data.name}`,
+          Status: 'waiting',
+          URL: template.URL,
+          FileName: template.Name || 'document.pdf',
           Placeholders: updatedPlaceholders,
           Signers: [{
             objectId: '',
@@ -394,19 +428,42 @@ class BulkSendApiService {
             Name: signer.name,
             Role: signer.role
           }],
-          SendinOrder: data.sendInOrder,
-          Note: data.message || `Bulk send: ${data.name}`
+          Bcc: [],
+          SendInOrder: data.sendInOrder,
+          IsOTP: false,
+          IsTour: false,
+          IsReminder: false,
+          ReminderInterval: 7,
+          TimeToCompleteDays: 30,
+          RedirectURL: '',
+          AllowModifications: false,
+          Type: 'template',
+          IsArchive: false,
+          Note: data.message || `Bulk send: ${data.name}`,
+          SendinOrder: data.sendInOrder
+          // ExtUserPtr and CreatedBy will be automatically set by backend
+          // ACL will be automatically managed by backend
         }
       })
 
-      // Call batchdocuments function
-      const response = await openSignApiService.post<{result: unknown}>(
-        'functions/batchdocuments',
-        { Documents: JSON.stringify(documents) }
-      )
-
-      if (!response.result) {
-        throw new Error('Failed to create bulk send documents')
+      // Create documents directly using Parse classes API since createBatchDocs doesn't exist
+      const createdDocuments = []
+      
+      for (const doc of documentsToCreate) {
+        try {
+          const response = await openSignApiService.post<{objectId: string, createdAt: string}>(
+            'classes/contracts_Document',
+            doc
+          )
+          createdDocuments.push({
+            ...doc,
+            objectId: response.objectId,
+            createdAt: response.createdAt
+          })
+        } catch (error) {
+          console.error('Failed to create document:', doc.Name, error)
+          throw new Error(`Failed to create document: ${doc.Name}`)
+        }
       }
 
       // Create and return bulk send object

@@ -93,7 +93,13 @@ export const useDocumentsStore = create<DocumentsState>()(
             ...params
           }
           
-          const response = await documentsApiService.getDocuments(requestParams)
+          const response = await documentsApiService.getDocumentsEnhanced(requestParams)
+          
+          console.log('📊 Documents loaded:', {
+            count: response.results.length,
+            status: requestParams.status,
+            filter: state.currentFilter
+          })
           
           set({
             documents: response.results,

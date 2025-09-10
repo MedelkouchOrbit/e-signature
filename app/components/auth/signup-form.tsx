@@ -56,7 +56,8 @@ export function SignupForm() {
           name,
           email,
           password,
-          termsAccepted
+          role: "contracts_User",
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         })
         
         console.log("✅ Signup response:", response)

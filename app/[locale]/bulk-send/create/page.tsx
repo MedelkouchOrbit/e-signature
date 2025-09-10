@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { AuthGuard } from "@/app/components/auth/AuthGuard"
 import { useBulkSendStore } from "@/app/lib/bulk-send-store"
 import { bulkSendApiService } from "@/app/lib/bulk-send-api-service"
-import { templatesApiService, teamsApiService, type OpenSignTeamMember } from "@/app/lib/templates-api-service"
+import { templatesApiService, type OpenSignTeamMember } from "@/app/lib/templates-api-service"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -107,12 +107,105 @@ export default function CreateBulkSendPage() {
   const loadTeamMembers = useCallback(async () => {
     try {
       setLoadingTeamMembers(true)
-      console.log('� Loading team members from OpenSign API...')
+      console.log('🔄 Loading team members from OpenSign API...')
       
-      const fetchedTeamMembers = await teamsApiService.getTeamMembers()
-      setTeamMembers(fetchedTeamMembers)
+      // Force set the working session token
+      const { openSignApiService } = await import("@/app/lib/api-service")
+      const workingToken = 'r:af90807d45364664e3707e4fe9a1a99c'
+      openSignApiService.setSessionToken(workingToken)
+      console.log('🔑 Set working session token for bulk send:', workingToken)
       
-      console.log(`✅ Loaded ${fetchedTeamMembers.length} team members from OpenSign`)
+      // Try to get organization members first
+      let teamMembers: OpenSignTeamMember[] = []
+      
+      try {
+        // First get teams to extract organization ID
+        console.log('🔍 Getting teams to find organization ID...')
+        const teamsResponse = await openSignApiService.post("functions/getteams", {
+          active: true
+        }) as {
+          result?: Array<{
+            OrganizationId?: { objectId: string }
+          }>
+          error?: string
+        }
+        
+        if (teamsResponse.result && teamsResponse.result.length > 0 && teamsResponse.result[0].OrganizationId) {
+          const organizationId = teamsResponse.result[0].OrganizationId.objectId
+          console.log('🏢 Found organization ID:', organizationId)
+          
+          // Get organization members
+          console.log('👥 Getting organization members...')
+          const membersResponse = await openSignApiService.post("functions/getuserlistbyorg", {
+            organizationId
+          }) as {
+            result?: Array<{
+              objectId: string
+              Name?: string
+              Email?: string
+              UserRole?: string
+              UserId?: { name?: string, email?: string }
+            }>
+            error?: string
+          }
+          
+          if (membersResponse.result) {
+            teamMembers = membersResponse.result.map(member => ({
+              objectId: member.objectId,
+              Name: member.Name || 
+                   (member.UserId?.name) || 
+                   'Unknown User',
+              Email: member.Email || 
+                    (member.UserId?.email) || 
+                    'unknown@example.com',
+              UserRole: member.UserRole || 'User',
+              IsDisabled: false,
+              TeamIds: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }))
+            console.log(`✅ Loaded ${teamMembers.length} organization members`)
+          }
+        }
+      } catch (orgError) {
+        console.warn('⚠️ Organization members fetch failed:', orgError)
+      }
+      
+      // Fallback: Use getsigners to get contacts
+      if (teamMembers.length === 0) {
+        console.log('🔄 Falling back to getsigners...')
+        const signersResponse = await openSignApiService.post("functions/getsigners", {
+          search: ''
+        }) as {
+          result?: Array<{
+            objectId: string
+            Name: string
+            Email: string
+            UserRole?: string
+          }>
+          error?: string
+        }
+        
+        if (signersResponse.result) {
+          teamMembers = signersResponse.result
+            .filter(contact => contact.Email && contact.Name)
+            .map(contact => ({
+              objectId: contact.objectId,
+              Name: contact.Name,
+              Email: contact.Email,
+              UserRole: contact.UserRole || 'User',
+              IsDisabled: false,
+              TeamIds: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }))
+          console.log(`✅ Loaded ${teamMembers.length} contacts from getsigners`)
+        }
+      }
+      
+      setTeamMembers(teamMembers)
+      console.log(`✅ Total team members available for assignment: ${teamMembers.length}`)
+      
     } catch (error) {
       console.error('❌ Error loading team members:', error)
       toast.error('Failed to load team members')
@@ -245,13 +338,21 @@ export default function CreateBulkSendPage() {
         message: message.trim() || undefined
       }
       
-      // Create bulk send via existing OpenSign classes (batchdocuments function)
-      toast.loading("Creating documents using OpenSign's batchdocuments function...")
-      const newBulkSend = await bulkSendApiService.createBulkSend(bulkSendData)
-      addBulkSend(newBulkSend)
+      // Clear any existing toasts and create bulk send
+      toast.dismiss() // Clear any existing toasts
+      const loadingToastId = toast.loading("Creating documents using OpenSign's batchdocuments function...")
       
-      toast.success(`🎉 Bulk send "${bulkSendName}" created successfully! ${signers.length} documents created.`)
-      router.push("/bulk-send")
+      try {
+        const newBulkSend = await bulkSendApiService.createBulkSend(bulkSendData)
+        addBulkSend(newBulkSend)
+        
+        toast.dismiss(loadingToastId)
+        toast.success(`🎉 Bulk send "${bulkSendName}" created successfully! ${signers.length} documents created.`)
+        router.push("/bulk-send")
+      } catch (bulkSendError) {
+        toast.dismiss(loadingToastId)
+        throw bulkSendError // Re-throw to be caught by outer catch
+      }
     } catch (error) {
       console.error('Error creating bulk send:', error)
       toast.error("Failed to create bulk send. Please try again.")

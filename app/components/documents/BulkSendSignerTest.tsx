@@ -73,7 +73,7 @@ export function BulkSendSignerTest({ documentId: initialDocId }: BulkSendTestPro
         signers = JSON.parse(signersData)
         addTestResult('Parse Signers', 'success', `Parsed ${signers.length} signers from input`)
       } catch (error) {
-        addTestResult('Parse Signers', 'error', 'Failed to parse signers JSON')
+        addTestResult('Parse Signers', 'error', `Failed to parse signers JSON: ${error instanceof Error ? error.message : 'Unknown error'}`)
         return
       }
 
@@ -298,16 +298,23 @@ export function BulkSendSignerTest({ documentId: initialDocId }: BulkSendTestPro
                     <div className="flex-1">
                       <div className="font-semibold">{result.step}</div>
                       <div className="text-sm mt-1">{result.message}</div>
-                      {result.data && (
+                      {result.data ? (
                         <details className="mt-2">
                           <summary className="text-xs cursor-pointer hover:underline">
                             Show Details
                           </summary>
                           <pre className="text-xs mt-2 p-2 bg-white/50 rounded border overflow-auto max-h-40">
-                            {typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2)}
+                            {(() => {
+                              if (typeof result.data === 'string') return result.data;
+                              try {
+                                return JSON.stringify(result.data, null, 2);
+                              } catch {
+                                return 'Error displaying data';
+                              }
+                            })()}
                           </pre>
                         </details>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </div>

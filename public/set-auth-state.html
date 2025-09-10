@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Set Authentication State</title>
+</head>
+<body>
+    <h1>Set Authentication State</h1>
+    <div id="output"></div>
+    
+    <button onclick="setAuthState()">Set Authentication State</button>
+    <button onclick="checkAuthState()">Check Authentication State</button>
+    <button onclick="clearAuthState()">Clear Authentication State</button>
+    
+    <script>
+        function setAuthState() {
+            const output = document.getElementById('output');
+            
+            // Set the session token cookie
+            document.cookie = 'opensign_session_token=r:6bf15d54b9cced698c47bc431ef63a4a; path=/';
+            
+            // Set localStorage session token
+            localStorage.setItem('opensign_session_token', 'r:6bf15d54b9cced698c47bc431ef63a4a');
+            
+            // Set user data in localStorage
+            localStorage.setItem('opensign_user', JSON.stringify({
+                email: 'admin@admin.com',
+                objectId: 'eBIGG0SY08',
+                username: 'admin@admin.com',
+                name: 'Admin User'
+            }));
+            
+            // Set currentUserId in localStorage
+            localStorage.setItem('currentUserId', 'eBIGG0SY08');
+            
+            // Set auth-storage data
+            localStorage.setItem('auth-storage', JSON.stringify({
+                state: {
+                    sessionToken: 'r:6bf15d54b9cced698c47bc431ef63a4a',
+                    user: {
+                        id: 'eBIGG0SY08',
+                        email: 'admin@admin.com',
+                        name: 'Admin User'
+                    }
+                }
+            }));
+            
+            output.innerHTML = '<p style="color: green;">✅ Authentication state set successfully!</p>';
+        }
+        
+        function checkAuthState() {
+            const output = document.getElementById('output');
+            let html = '<h2>Current Authentication State:</h2>';
+            
+            // Check cookies
+            html += '<h3>Cookies:</h3>';
+            const cookies = document.cookie.split(';');
+            cookies.forEach(cookie => {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'opensign_session_token') {
+                    html += `<p><strong>${name}:</strong> ${value}</p>`;
+                }
+            });
+            
+            // Check localStorage
+            html += '<h3>localStorage:</h3>';
+            const keys = ['opensign_session_token', 'currentUserId', 'opensign_user', 'auth-storage'];
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    html += `<p><strong>${key}:</strong> ${key === 'auth-storage' || key === 'opensign_user' ? JSON.stringify(JSON.parse(value), null, 2) : value}</p>`;
+                }
+            });
+            
+            output.innerHTML = html;
+        }
+        
+        function clearAuthState() {
+            const output = document.getElementById('output');
+            
+            // Clear cookies
+            document.cookie = 'opensign_session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            
+            // Clear localStorage
+            localStorage.removeItem('opensign_session_token');
+            localStorage.removeItem('currentUserId');
+            localStorage.removeItem('opensign_user');
+            localStorage.removeItem('auth-storage');
+            
+            output.innerHTML = '<p style="color: red;">❌ Authentication state cleared!</p>';
+        }
+        
+        // Auto-check on load
+        window.onload = checkAuthState;
+    </script>
+</body>
+</html>

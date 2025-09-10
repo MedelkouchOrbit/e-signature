@@ -3,11 +3,18 @@ import type { UserCredentials, UserRegistration, OpenSignLoginResponse } from ".
 
 export const authApiService = {
   login: async (credentials: UserCredentials) => {
-    const response = await openSignApiService.post<OpenSignLoginResponse>("functions/loginuser", credentials);
+    // Use standard Parse login endpoint instead of custom loginuser function
+    const loginData = {
+      username: credentials.email, // Parse uses username field
+      password: credentials.password
+    };
+    
+    const response = await openSignApiService.post<OpenSignLoginResponse>("login", loginData);
     
     // Store session token if login is successful
-    if (response && response.result && response.result.sessionToken) {
-      openSignApiService.setSessionToken(response.result.sessionToken);
+    if (response && response.sessionToken) {
+      openSignApiService.setSessionToken(response.sessionToken);
+      console.log('✅ Login successful, session token stored');
     }
     
     return response;
@@ -64,7 +71,8 @@ export const authApiService = {
   // Admin functions
   addAdmin: async (userDetails: UserRegistration) => {
     return openSignApiService.post("functions/addadmin", {
-      userDetails
+      ...userDetails,
+      role: 'contracts_Admin'
     });
   },
 

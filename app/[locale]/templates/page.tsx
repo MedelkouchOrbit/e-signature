@@ -123,21 +123,15 @@ export default function TemplatesPage() {
   }
 
   const filteredTemplates = templates.filter(template => {
-    const matchesSearch = getTemplateField(template as any, 'name').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         getTemplateField(template as any, 'description').toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesSearch = getTemplateField(template as unknown as TemplateData, 'name').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         getTemplateField(template as unknown as TemplateData, 'description').toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSearch
   })
 
   // Check if any template has description to decide whether to show the description column
   const hasDescriptions = filteredTemplates.some(template => {
-    const description = getTemplateField(template as any, 'description')
+    const description = getTemplateField(template as unknown as TemplateData, 'description')
     return description && description.trim() !== '' && description.toLowerCase() !== 'no description'
-  })
-
-  // Check if any template has actual signers to decide whether to show the signers column
-  const hasSigners = filteredTemplates.some(template => {
-    const signers = (template as any).Signers || []
-    return Array.isArray(signers) && signers.length > 0
   })
 
   const formatDate = (dateString: string) => {
@@ -250,26 +244,29 @@ export default function TemplatesPage() {
                   <TableRow key={template.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <TableCell className="font-medium">
                       <div className="font-semibold text-gray-900 dark:text-white">
-                        {getTemplateField(template as any, 'name')}
+                        {getTemplateField(template as unknown as TemplateData, 'name')}
                       </div>
                     </TableCell>
                     {hasDescriptions && (
                       <TableCell>
                         <div className="max-w-xs text-gray-600 truncate dark:text-gray-300">
-                          {getTemplateField(template as any, 'description') || t("noDescription")}
+                          {getTemplateField(template as unknown as TemplateData, 'description') || t("noDescription")}
                         </div>
                       </TableCell>
                     )}
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {(() => {
-                          const signers = (template as any).Signers || []
+                          const signers = (template as unknown as TemplateData).Signers || []
                           if (Array.isArray(signers) && signers.length > 0) {
-                            return signers.map((signer: any, index: number) => (
-                              <span key={index} className="px-2 py-1 text-xs text-blue-800 bg-blue-100 rounded-full dark:bg-blue-900 dark:text-blue-200">
-                                {signer.name || signer.Name || signer.email || signer.Email || `Signer ${index + 1}`}
-                              </span>
-                            ))
+                            return signers.map((signer: unknown, index: number) => {
+                              const s = signer as { name?: string; Name?: string; email?: string; Email?: string };
+                              return (
+                                <span key={index} className="px-2 py-1 text-xs text-blue-800 bg-blue-100 rounded-full dark:bg-blue-900 dark:text-blue-200">
+                                  {s.name || s.Name || s.email || s.Email || `Signer ${index + 1}`}
+                                </span>
+                              );
+                            })
                           }
                           return <span className="text-sm text-gray-400">{t("noSigners")}</span>
                         })()}
@@ -290,7 +287,7 @@ export default function TemplatesPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem 
-                            onClick={() => handlePreviewTemplate(template)}
+                            onClick={() => handlePreviewTemplate(template as unknown as TemplateData)}
                           >
                             <Eye className="w-4 h-4 mr-2" />
                             {t("actions.preview")}

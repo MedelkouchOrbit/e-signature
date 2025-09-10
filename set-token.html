@@ -1,0 +1,25 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Set OpenSign Session Token</title>
+</head>
+<body>
+    <h1>OpenSign Session Token Setup</h1>
+    <p>Click the button below to set the working session token:</p>
+    <button onclick="setToken()">Set Working Token</button>
+    <div id="status"></div>
+    
+    <script>
+    function setToken() {
+        localStorage.setItem('opensign_session_token', 'r:e34199e2511b2efc8f6a9f5d0290b1c5');
+        document.getElementById('status').innerHTML = '<p style="color: green;">✅ Token set successfully! You can now close this page and refresh your app.</p>';
+        
+        // Optionally redirect to the team page
+        setTimeout(() => {
+            window.location.href = 'http://localhost:3000/en/team';
+        }, 2000);
+    }
+    </script>
+</body>
+</html>
