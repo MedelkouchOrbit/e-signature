@@ -11,7 +11,7 @@ export function TermsPageClient() {
   return (
     <main className="flex-1 py-12 md:py-24 lg:py-32">
       <div className="container px-4 md:px-6">
-        <div className="mx-auto max-w-3xl space-y-8">
+        <div className="max-w-3xl mx-auto space-y-8">
           <div className="text-center">
             <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">{t("title")}</h1>
             <p className="mt-4 text-gray-500 dark:text-gray-400">{t("lastUpdated", { date: "July 24, 2025" })}</p>

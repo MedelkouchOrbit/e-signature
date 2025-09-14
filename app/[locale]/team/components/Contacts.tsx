@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Search, MoreHorizontal, Contact } from "lucide-react"
@@ -20,47 +20,37 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { contactsApiService, type OpenSignContact } from "@/app/lib/templates-api-service"
+import { useContacts } from "@/app/lib/opensign/contact-services"
 import { AddContactModal } from "./AddContactModal"
 import { useToast } from "@/hooks/use-toast"
+
+interface OpenSignContact {
+  objectId: string
+  Name: string
+  Email: string
+  Phone?: string
+  Company?: string
+  JobTitle?: string
+  UserRole?: string
+  createdAt: string
+  updatedAt: string
+}
 
 export function Contacts() {
   const { toast } = useToast()
 
   // State
-  const [contacts, setContacts] = useState<OpenSignContact[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
 
-  // Load contacts
-  const loadContacts = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      const contactsData = await contactsApiService.getContacts()
-      setContacts(contactsData)
-      
-    } catch (err) {
-      console.error('Error loading contacts:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load contacts')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // Use React Query hook for contacts
+  const { data: contacts = [], isLoading: loading, error, refetch } = useContacts(searchTerm)
 
-  // Load contacts on mount
-  useEffect(() => {
-    loadContacts()
-  }, [loadContacts])
-
-  // Filter contacts based on search term
+  // Filter contacts based on search term (additional client-side filtering)
   const filteredContacts = useMemo(() => {
     if (!searchTerm.trim()) return contacts
     
-    return contacts.filter(contact =>
+    return contacts.filter((contact: OpenSignContact) =>
       contact.Name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       contact.Email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       contact.Phone?.includes(searchTerm)
@@ -68,14 +58,14 @@ export function Contacts() {
   }, [contacts, searchTerm])
 
   // Handle add contact success
-  const handleAddContactSuccess = useCallback(() => {
+  const handleAddContactSuccess = () => {
     setIsAddModalOpen(false)
-    loadContacts() // Reload contacts after adding
+    refetch() // Reload contacts after adding
     toast({
       title: "Success",
       description: "Contact has been added successfully.",
     })
-  }, [loadContacts, toast])
+  }
 
   // Generate contact initials
   const getContactInitials = (contact: OpenSignContact) => {
@@ -110,8 +100,8 @@ export function Contacts() {
           <h2 className="text-lg font-semibold text-gray-900">Contacts</h2>
         </div>
         <div className="text-center py-8">
-          <p className="text-red-600 mb-4">{error}</p>
-          <Button onClick={loadContacts} variant="outline">
+          <p className="text-red-600 mb-4">{error?.message || "An error occurred"}</p>
+          <Button onClick={() => refetch()} variant="outline">
             Try Again
           </Button>
         </div>
@@ -190,7 +180,7 @@ export function Contacts() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredContacts.map((contact) => (
+              {filteredContacts.map((contact: OpenSignContact) => (
                 <TableRow key={contact.objectId} className="hover:bg-gray-50">
                   <TableCell>
                     <div className="flex items-center space-x-3">

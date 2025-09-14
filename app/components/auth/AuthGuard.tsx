@@ -2,13 +2,12 @@
 
 import type React from "react"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState } from "react"
 import { useAuthStore } from "@/app/lib/auth/auth-store"
+import { useAuth } from "@/app/lib/auth/use-auth-query"
 import { useRouter, usePathname } from "@/app/i18n/navigation"
 import { useTranslations } from "next-intl"
 import { Skeleton } from "@/components/ui/skeleton"
-import { openSignApiService } from "@/app/lib/api-service"
-import { authApiService } from "@/app/lib/auth/auth-api-service"
 
 interface AuthGuardProps {
   children: React.ReactNode
@@ -16,6 +15,7 @@ interface AuthGuardProps {
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const { isAuthenticated, logout } = useAuthStore()
+  const { sessionQuery } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const t = useTranslations("AuthGuard")

@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, Clock, FileText, AlertCircle, Filter } from "lucide-react"
-import { type DocumentStatus } from "@/app/lib/documents-api-service"
+import { type DocumentStatus } from "@/app/lib/documents/documents-types"
+import { getAvailableStatuses } from "@/app/lib/documents/document-status-utils"
 
 interface DocumentStatusFilterProps {
   currentStatus: DocumentStatus | 'all'

@@ -301,7 +301,7 @@ class DocumentsApiService {
         const response = await openSignApiService.post<{
           result?: Record<string, unknown>[]
           error?: string
-        }>("functions/getReport", reportParams);
+        }>("getReport", reportParams);
 
         if (!response.error && response.result) {
           reportDocuments = (response.result || []).map(result => {
@@ -493,7 +493,7 @@ class DocumentsApiService {
       const response = await openSignApiService.post<{
         result?: Record<string, unknown>[]
         error?: string
-      }>("functions/getReport", reportParams);
+      }>("getReport", reportParams);
 
       if (response.error) {
         console.error('❌ getReport API error:', response.error);
@@ -608,7 +608,7 @@ class DocumentsApiService {
       const response = await openSignApiService.post<{
         result?: string
         error?: string
-      }>("functions/batchdocuments", batchData);
+      }>("batchdocuments", batchData);
 
       if (response.error) {
         console.error('❌ Batch documents API error:', response.error);
@@ -800,7 +800,7 @@ class DocumentsApiService {
       const response = await openSignApiService.post<{
         result: EnhancedSignResponse
       }>(
-        "functions/signPdf",
+        "signPdf",
         {
           docId: data.documentId,
           signature: data.signature,
@@ -860,7 +860,7 @@ class DocumentsApiService {
       
       // Get the PDF file content for signing (original approach)
       const pdfResponse = await openSignApiService.post<{result: {content?: string, fileContent?: string}}>(
-        "functions/getfilecontent", 
+        "getfilecontent", 
         { docId: data.documentId }
       );
       
@@ -910,7 +910,7 @@ class DocumentsApiService {
           const response = await openSignApiService.post<{
             result: EnhancedSignResponse
           }>(
-            "functions/signPdf",
+            "signPdf",
             {
               docId: data.documentId,
               signature: data.signature,
@@ -977,7 +977,7 @@ class DocumentsApiService {
       const response = await openSignApiService.post<{
         result: EnhancedSignResponse
       }>(
-        "functions/signPdf",
+        "signPdf",
         {
           docId: data.documentId,
           userId: contractsUserId, // Dynamic contracts_Users ID
@@ -1071,7 +1071,8 @@ class DocumentsApiService {
    */
   async shareDocument(documentId: string, recipients: string[], message?: string): Promise<void> {
     try {
-      await openSignApiService.post("functions/shareDocument", {
+      // ✅ CORRECTED: Remove /functions/ prefix, use direct function name
+      await openSignApiService.post("shareDocument", {
         documentId,
         recipients,
         message
@@ -1146,7 +1147,7 @@ class DocumentsApiService {
             expires: string
           }
           error?: string
-        }>("functions/getfileurl", {
+        }>("getfileurl", {
           docId: documentId
         });
 
@@ -1189,7 +1190,7 @@ class DocumentsApiService {
             }
           }
           error?: string
-        }>("functions/getdocumentfile", {
+        }>("getdocumentfile", {
           docId: documentId
         });
 
@@ -1259,7 +1260,7 @@ class DocumentsApiService {
             }>
           }
           error?: string
-        }>("functions/getDocument", {
+        }>("getDocument", {
           docId: documentId
         });
 
@@ -1827,7 +1828,7 @@ class UserDetailsService {
           UserId?: { objectId: string }
         }
         error?: string
-      }>("functions/getUserDetails", {
+      }>("getUserDetails", {
         ExtUserPtr: userExtendedId
       });
 

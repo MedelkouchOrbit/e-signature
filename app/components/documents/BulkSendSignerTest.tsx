@@ -13,7 +13,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { documentSignersApiService } from "@/app/lib/document-signers-api-service"
-import { openSignApiService } from "@/app/lib/api-service"
+import { contactsApiService } from "@/app/lib/contacts/contacts-api-service"
+import { documentsApiService } from "@/app/lib/documents/documents-api-service"
 
 interface BulkSendTestProps {
   documentId?: string
@@ -80,22 +81,18 @@ export function BulkSendSignerTest({ documentId: initialDocId }: BulkSendTestPro
       // Step 1: Check if document exists and is a bulk send document
       addTestResult('Document Check', 'pending', 'Checking document details...')
       try {
-        const docResponse = await openSignApiService.get(`classes/contracts_Document/${documentId}?include=Signers,Placeholders`) as {
-          Name?: string
-          Signers?: unknown[]
-          Placeholders?: unknown[]
-        }
-        const isBulkSend = docResponse.Name?.includes('Bulk Send:')
+        const document = await documentsApiService.getDocument(documentId)
+        const isBulkSend = document.name?.includes('Bulk Send:')
         
         addTestResult(
           'Document Check', 
           'success', 
-          `Document found: "${docResponse.Name}" (${isBulkSend ? 'Bulk Send' : 'Regular'} document)`,
+          `Document found: "${document.name}" (${isBulkSend ? 'Bulk Send' : 'Regular'} document)`,
           { 
-            name: docResponse.Name,
+            name: document.name,
             isBulkSend,
-            currentSigners: docResponse.Signers?.length || 0,
-            currentPlaceholders: docResponse.Placeholders?.length || 0
+            currentSigners: document.signers?.length || 0,
+            currentPlaceholders: document.placeholders?.length || 0
           }
         )
 

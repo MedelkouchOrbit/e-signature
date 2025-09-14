@@ -1,58 +1,34 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Users, Calendar, Building2, AlertCircle, ChevronRight, ChevronDown } from "lucide-react"
-import { teamsApiService, type OpenSignTeamMember } from '@/app/lib/templates-api-service'
-import { openSignApiService } from '@/app/lib/api-service'
+import { useOrganizationData, useCreateTeam, useAddMemberToTeam, type OpenSignTeam, type OpenSignTeamMember } from '@/app/lib/opensign/team-services'
 import { CreateTeamModal } from './CreateTeamModal'
 import { AddMemberToTeamModal } from './AddMemberToTeamModal'
 
-interface Team {
-  objectId: string
-  Name: string
-  IsActive: boolean
-  OrganizationId?: {
-    objectId: string
-    Name?: string
-  }
-  createdAt: string
-  updatedAt: string
-}
-
-interface TeamMember {
-  objectId: string
-  Name: string
-  Email: string
-  UserRole?: string
-  Company?: string
-  IsDisabled?: boolean
-  TeamIds?: Array<{
-    objectId: string
-    Name?: string
-  }>
-  createdAt: string
-}
-
 interface OrganizationData {
-  teams: Team[]
-  members: TeamMember[]
+  teams: OpenSignTeam[]
+  members: OpenSignTeamMember[]
 }
 
 export function TeamsAndMembers() {
-  const [organizationData, setOrganizationData] = useState<OrganizationData>({
-    teams: [],
-    members: []
-  })
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
+  // Use React Query for organization data
+  const { data: organizationData, isLoading: loading, error, refetch } = useOrganizationData()
+  const createTeamMutation = useCreateTeam()
+  const addMemberMutation = useAddMemberToTeam()
+  
+  const [selectedTeam, setSelectedTeam] = useState<OpenSignTeam | null>(null)
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false)
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false)
-  const [selectedTeamForMember, setSelectedTeamForMember] = useState<Team | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [selectedTeamForMember, setSelectedTeamForMember] = useState<OpenSignTeam | null>(null)
+
+  // Extract teams and members from organization data
+  const teams = organizationData?.teams || []
+  const members = organizationData?.members || []
 
   // Load organization data
   const loadOrganizationData = React.useCallback(async () => {

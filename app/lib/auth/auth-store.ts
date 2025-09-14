@@ -1,11 +1,17 @@
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
 
+interface AuthUser {
+  id: string
+  email: string
+  name?: string
+}
+
 interface AuthState {
   isAuthenticated: boolean
-  user: { id: string; email: string } | null
+  user: AuthUser | null
   token: string | null
-  login: (user: { id: string; email: string }, token: string) => void
+  login: (user: AuthUser, token: string) => void
   logout: () => void
   syncWithSessionToken: () => void
 }

@@ -28,7 +28,7 @@ export function usePDFLoader(documentId: string | null): UsePDFLoaderResult {
     setError(null);
 
     try {
-      // Dynamic import to avoid SSR issues
+      // Dynamic import to avoid SSR issues - use main documents API service
       const { documentsApiService } = await import('../documents-api-service');
       
       // Get the document URL/content from the service

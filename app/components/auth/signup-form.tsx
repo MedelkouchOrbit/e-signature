@@ -7,7 +7,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Link, useRouter } from "@/app/i18n/navigation"
 import { useState } from "react"
 import { Eye, EyeOff, AlertTriangle, Loader2 } from "lucide-react"
+import { useMutation } from "@tanstack/react-query"
 import { authApiService } from "@/app/lib/auth/auth-api-service"
+import type { UserRegistration } from "@/app/lib/auth/auth-types"
 import { useTranslations } from "next-intl"
 import { useToast } from "@/hooks/use-toast"
 
@@ -15,6 +17,57 @@ export function SignupForm() {
   const t = useTranslations("SignupPage")
   const router = useRouter()
   const { toast } = useToast()
+  const signupMutation = useMutation({
+    mutationFn: (data: UserRegistration) => authApiService.signup(data),
+    onSuccess: (response) => {
+      console.log("✅ Enhanced signup response:", response)
+      
+      // Check if the response indicates approval is required
+      if (response && response.requiresApproval) {
+        toast({
+          title: "Account Created",
+          description: "Your account has been created and is pending administrator approval. You will be notified when approved.",
+          variant: "default",
+        })
+      } else {
+        toast({
+          title: t("signupSuccessTitle"),
+          description: t("signupSuccessDescription"),
+          variant: "default",
+        })
+      }
+      
+      // Redirect to login page after successful signup
+      router.push("/auth/login")
+    },
+    onError: (error) => {
+      console.error("❌ Signup error:", error)
+      
+      let errorMessage = "An unexpected error occurred. Please try again."
+      
+      if (error instanceof Error) {
+        if (error.message.includes('pending administrator approval')) {
+          errorMessage = error.message
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = "Network error. Please check your connection and try again."
+        } else if (error.message.includes('409') || error.message.includes('exists')) {
+          errorMessage = "An account with this email already exists."
+        } else if (error.message.includes('400')) {
+          errorMessage = "Invalid information. Please check your details."
+        } else {
+          errorMessage = `Signup failed: ${error.message}`
+        }
+      }
+      
+      setSignupError(errorMessage)
+      
+      toast({
+        title: t("signupErrorTitle"),
+        description: errorMessage,
+        variant: "destructive",
+      })
+    }
+  })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [name, setName] = useState("")
@@ -29,7 +82,6 @@ export function SignupForm() {
     confirmPassword: false,
     terms: false 
   })
-  const [isLoading, setIsLoading] = useState(false)
   const [signupError, setSignupError] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,54 +99,21 @@ export function SignupForm() {
     setErrors(newErrors)
     
     if (!Object.values(newErrors).some(error => error)) {
-      setIsLoading(true)
-      
       try {
-        console.log("🔐 Attempting signup with:", { name, email })
+        console.log("🔐 Attempting modern signup with:", { name, email })
         
-        const response = await authApiService.signup({
+        // Use the enhanced auth service with approval workflow
+        await signupMutation.mutateAsync({
           name,
           email,
           password,
           role: "contracts_User",
+          company: "", // Default empty company
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         })
         
-        console.log("✅ Signup response:", response)
-        
-        toast({
-          title: t("signupSuccessTitle"),
-          description: t("signupSuccessDescription"),
-          variant: "default",
-        })
-        
-        // Redirect to login page after successful signup
-        router.push("/auth/login")
-        
-      } catch (error) {
-        console.error("❌ Signup error:", error)
-        
-        if (error instanceof Error) {
-          if (error.message.includes('network') || error.message.includes('fetch')) {
-            setSignupError("Network error. Please check your connection and try again.")
-          } else if (error.message.includes('409') || error.message.includes('exists')) {
-            setSignupError("An account with this email already exists.")
-          } else if (error.message.includes('400')) {
-            setSignupError("Invalid information. Please check your details.")
-          } else {
-            setSignupError(`Signup failed: ${error.message}`)
-          }
-        } else {
-          setSignupError("An unexpected error occurred. Please try again.")
-        }
-        
-        toast({
-          title: t("signupErrorTitle"),
-          description: signupError || t("signupErrorDescription"),
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
+      } catch {
+        // Error handling is done in the mutation's onError callback
       }
     }
   }
@@ -254,10 +273,10 @@ export function SignupForm() {
 
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={signupMutation.isPending}
               className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white py-3 rounded-md font-medium transition-colors"
             >
-              {isLoading ? (
+              {signupMutation.isPending ? (
                 <div className="flex items-center justify-center">
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   {t("signingUp")}

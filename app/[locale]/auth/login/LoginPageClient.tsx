@@ -7,25 +7,23 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Link, useRouter } from "@/app/i18n/navigation"
 import { useState } from "react"
 import { Eye, EyeOff, AlertTriangle, Loader2 } from "lucide-react"
-import { authApiService } from "@/app/lib/auth/auth-api-service"
-import { useAuthStore } from "@/app/lib/auth/auth-store"
+import { useAuthStore } from "@/app/lib/store/auth-store"
 import { useTranslations } from "next-intl"
 
 export function LoginPageClient() {
   const router = useRouter()
-  const { login } = useAuthStore()
+  const { login, isLoading, error, clearError } = useAuthStore()
   const t = useTranslations("LoginPage")
+  
   const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState("admin@admin.com") // Pre-fill admin email for testing
-  const [password, setPassword] = useState("admin@123") // Pre-fill admin password for testing
+  const [email, setEmail] = useState("superadmin@superadmin.com") // Pre-fill superadmin email for testing
+  const [password, setPassword] = useState("Superadmin12@") // Pre-fill superadmin password for testing
   const [rememberMe, setRememberMe] = useState(false)
   const [errors, setErrors] = useState({ email: false, password: false })
-  const [isLoading, setIsLoading] = useState(false)
-  const [loginError, setLoginError] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoginError("")
+    clearError()
     
     // Basic validation
     const newErrors = {
@@ -35,58 +33,17 @@ export function LoginPageClient() {
     setErrors(newErrors)
     
     if (!newErrors.email && !newErrors.password) {
-      setIsLoading(true)
-      
       try {
-        console.log("🔐 Attempting login with:", { email, rememberMe })
+        console.log("🔐 Attempting login with Zustand store:", { email, rememberMe })
         
-        const response = await authApiService.login({
-          email,
-          password
-        })
+        await login(email, password)
         
-        console.log("✅ Login response:", response)
+        console.log("🎉 Login successful, redirecting to dashboard...")
+        router.push("/dashboard")
         
-        if (response && response.sessionToken) {
-          console.log("🎉 Login successful, redirecting to dashboard...")
-          console.log("Session token:", response.sessionToken)
-          
-          // Update auth store with user data
-          login(
-            { 
-              id: response.objectId || 'user', 
-              email: email,
-              name: response.name || response.username
-            },
-            response.sessionToken
-          )
-          
-          // Redirect to dashboard on successful login
-          router.push("/dashboard")
-        } else {
-          console.log("❌ Login failed - no session token in response")
-          setLoginError("Login failed. Please check your credentials.")
-        }
-        
-      } catch (error) {
-        console.error("❌ Login error:", error)
-        
-        // More detailed error handling
-        if (error instanceof Error) {
-          if (error.message.includes('network') || error.message.includes('fetch')) {
-            setLoginError("Network error. Please check your connection and try again.")
-          } else if (error.message.includes('401') || error.message.includes('unauthorized')) {
-            setLoginError("Invalid email or password. Please try again.")
-          } else if (error.message.includes('400')) {
-            setLoginError("Invalid request. Please check your email format.")
-          } else {
-            setLoginError(`Login failed: ${error.message}`)
-          }
-        } else {
-          setLoginError("An unexpected error occurred during login. Please try again.")
-        }
-      } finally {
-        setIsLoading(false)
+      } catch (loginError) {
+        console.error("❌ Login error:", loginError)
+        // Error is already handled by the store
       }
     }
   }
@@ -112,11 +69,11 @@ export function LoginPageClient() {
         
         <form onSubmit={handleSubmit} className="w-full">
           <div className="space-y-6">
-            {loginError && (
+            {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-md">
                 <div className="flex items-center">
                   <AlertTriangle className="h-4 w-4 text-red-500 mr-2" />
-                  <span className="text-sm text-red-700">{loginError}</span>
+                  <span className="text-sm text-red-700">{error}</span>
                 </div>
               </div>
             )}

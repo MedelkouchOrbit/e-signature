@@ -1,16 +1,16 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { X, FileText, Clock, Users } from "lucide-react"
-import { documentsApiService, type Document } from "@/app/lib/documents-api-service"
 import { PDFViewerWrapper } from "./PDFViewerWrapper"
 import { useToast } from "@/hooks/use-toast"
 import { usePDFLoader } from "@/app/lib/hooks/usePDFLoader"
+import { useDocument, useSignDocument } from "@/app/lib/documents/use-documents"
 
 interface SimpleDocumentSignProps {
   documentId: string
@@ -20,13 +20,33 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
   const router = useRouter()
   const { toast } = useToast()
   
-  const [document, setDocument] = useState<Document | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  // Use React Query hooks for data fetching
+  const { 
+    data: document, 
+    isLoading, 
+    error: documentError 
+  } = useDocument(documentId)
+  
+  const signDocumentMutation = useSignDocument()
+  
   const [fullName, setFullName] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Combine loading states
+  const isSubmitting = signDocumentMutation.isPending
 
   // Use the new PDF loader hook for better error handling and blob management
   const { pdfUrl: documentUrl, loading: pdfLoading, error: pdfError, reload: reloadPDF } = usePDFLoader(documentId)
+
+  // Show toast notifications based on document loading state
+  useEffect(() => {
+    if (documentError) {
+      toast({
+        title: "Error",
+        description: "Failed to load document",
+        variant: "destructive"
+      })
+    }
+  }, [documentError, toast])
 
   // Show toast notifications based on PDF loading state
   useEffect(() => {
@@ -44,45 +64,24 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
     }
   }, [documentUrl, pdfError, toast])
 
-  const loadDocument = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      const doc = await documentsApiService.getDocument(documentId)
-      setDocument(doc)
-      
-      console.log('✅ Document metadata loaded successfully')
-      
-      // Pre-fill user name if available
-      if (typeof window !== 'undefined') {
-        try {
-          const authData = localStorage.getItem('auth-storage')
-          if (authData) {
-            const auth = JSON.parse(authData)
-            if (auth.state?.user?.email) {
-              // Extract name from email or use stored name
-              const emailName = auth.state.user.email.split('@')[0]
-              setFullName(emailName)
-            }
-          }
-        } catch {
-          // Ignore parsing errors
-        }
-      }
-    } catch (error) {
-      console.error('Error loading document:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load document",
-        variant: "destructive"
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [documentId, toast])
-
+  // Pre-fill user name from auth when document loads
   useEffect(() => {
-    loadDocument()
-  }, [loadDocument])
+    if (document && typeof window !== 'undefined') {
+      try {
+        const authData = localStorage.getItem('auth-storage')
+        if (authData) {
+          const auth = JSON.parse(authData)
+          if (auth.state?.user?.email) {
+            // Extract name from email or use stored name
+            const emailName = auth.state.user.email.split('@')[0]
+            setFullName(emailName)
+          }
+        }
+      } catch {
+        // Ignore parsing errors
+      }
+    }
+  }, [document])
 
   const handleCancel = () => {
     router.push('/documents')
@@ -108,7 +107,6 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
     }
 
     try {
-      setIsSubmitting(true)
       console.log('🖊️ Signing document:', document.objectId, 'with name:', fullName)
 
       // Get current user information dynamically from authentication
@@ -144,27 +142,29 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
 
       console.log('📝 Signing with userId:', currentUser.userId, 'email:', currentUser.email)
 
-      // Call the signing endpoint with correct backend parameters
-      const signedDocument = await documentsApiService.signDocument({
+      // Use React Query mutation for signing
+      await signDocumentMutation.mutateAsync({
         documentId: document.objectId,
-        userId: currentUser.userId,
-        signature: signatureDataUrl,
         signatureData: {
-          positions: [{
-            x: 100,        // Default X position 
-            y: 100,        // Default Y position
-            width: 150,    // Signature width
-            height: 50,    // Signature height
-            page: 1        // First page
-          }],
-          signerInfo: {
-            name: fullName,
-            email: currentUser.email
+          userId: currentUser.userId,
+          signature: signatureDataUrl,
+          signatureData: {
+            positions: [{
+              x: 100,        // Default X position 
+              y: 100,        // Default Y position
+              width: 150,    // Signature width
+              height: 50,    // Signature height
+              page: 1        // First page
+            }],
+            signerInfo: {
+              name: fullName,
+              email: currentUser.email
+            }
           }
         }
       })
 
-      console.log('✅ Document signed successfully:', signedDocument)
+      console.log('✅ Document signed successfully')
 
       toast({
         title: "Document Signed Successfully!",
@@ -180,8 +180,6 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
         description: error instanceof Error ? error.message : "Failed to sign document. Please try again.",
         variant: "destructive"
       })
-    } finally {
-      setIsSubmitting(false)
     }
   }
 

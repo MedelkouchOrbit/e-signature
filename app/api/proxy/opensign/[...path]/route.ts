@@ -7,12 +7,13 @@ const OPENSIGN_MASTER_KEY = process.env.OPENSIGN_MASTER_KEY || 'opensigndemo'
 const OPENSIGN_USERNAME = process.env.OPENSIGN_USERNAME || 'admin@admin.com'
 const OPENSIGN_PASSWORD = process.env.OPENSIGN_PASSWORD || 'admin@123'
 
-// Possible Parse Server mount paths to try
-const POSSIBLE_MOUNT_PATHS = ['/1', '/api/1', '/parse/1', '/app', '/parse', '/api', '']
+// ✅ CORRECTED: Parse Server mount paths based on OpenSign server analysis
+// OpenSign mounts at /app, not /api/app
+const POSSIBLE_MOUNT_PATHS = ['/api/app', '/app', '/1', '/api/1', '/parse/1', '/parse', '/api', '']
 
 // Cache for session token to avoid multiple login attempts
-let cachedSessionToken: string | null = 'r:3f77f73a3e0b514c9533112dbcf91a77' // Fresh admin token
-let tokenExpiry: number = Date.now() + (60 * 60 * 1000) // Set to expire in 1 hour
+let cachedSessionToken: string | null = null // ✅ FIXED: Remove hardcoded token for security
+let tokenExpiry: number = 0 // Token expiry time
 
 // Helper function to authenticate and get session token
 async function getSessionToken(): Promise<string | null> {
@@ -27,24 +28,26 @@ async function getSessionToken(): Promise<string | null> {
       console.log('[OpenSign Proxy] Attempting to authenticate...')
       
       for (const mountPath of POSSIBLE_MOUNT_PATHS) {
-        const loginUrl = `${OPENSIGN_BASE_URL}${mountPath}/login`
+        const loginUrl = `${OPENSIGN_BASE_URL}${mountPath}/functions/loginuser`
         
         const response = await fetch(loginUrl, {
           method: 'POST',
           headers: {
-            'X-Parse-Application-Id': OPENSIGN_APP_ID,
-            'Content-Type': 'application/json',
+            'Content-Type': 'text/plain',
           },
           body: JSON.stringify({
-            username: OPENSIGN_USERNAME,
+            _ApplicationId: OPENSIGN_APP_ID,
+            _ClientVersion: 'js6.1.1',
+            _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+            email: OPENSIGN_USERNAME,
             password: OPENSIGN_PASSWORD,
           }),
         })
 
         if (response.ok) {
           const data = await response.json()
-          if (data.sessionToken) {
-            cachedSessionToken = data.sessionToken
+          if (data.result?.sessionToken) {
+            cachedSessionToken = data.result.sessionToken
             tokenExpiry = Date.now() + (60 * 60 * 1000) // 1 hour
             console.log('[OpenSign Proxy] ✅ Authentication successful')
             return cachedSessionToken
@@ -537,13 +540,10 @@ async function attemptRequest(
     }
   }
   
-  if (sessionToken && sessionToken !== ';') {
-    headers['X-Parse-Session-Token'] = sessionToken
-  }
-
-  // Add Parse App ID
-  headers['X-Parse-Application-Id'] = OPENSIGN_APP_ID
-
+  // Check if this is OpenSign format (Content-Type: text/plain)
+  const incomingContentType = request.headers.get('content-type') || ''
+  const isOpenSignFormat = incomingContentType.includes('text/plain')
+  
   // Copy other relevant headers
   const authorization = request.headers.get('Authorization')
   if (authorization) {
@@ -556,9 +556,22 @@ async function attemptRequest(
     headers['Origin'] = origin
   }
 
-  // Handle content-type based on request type
+  // Handle content-type based on request type and incoming format
   if (!isFormData) {
-    headers['Content-Type'] = 'application/json'
+    if (isOpenSignFormat) {
+      // ✅ Preserve OpenSign format - use text/plain and don't add Parse headers
+      headers['Content-Type'] = 'text/plain'
+      console.log('[OpenSign Proxy] Preserving OpenSign format (text/plain) - no Parse headers added')
+    } else {
+      // Legacy format - use Parse headers
+      headers['Content-Type'] = 'application/json'
+      
+      // Add session token and app ID only for non-OpenSign format requests
+      if (sessionToken && sessionToken !== ';') {
+        headers['X-Parse-Session-Token'] = sessionToken
+      }
+      headers['X-Parse-Application-Id'] = OPENSIGN_APP_ID
+    }
   }
   // For FormData, let fetch set the content-type automatically with boundary
 

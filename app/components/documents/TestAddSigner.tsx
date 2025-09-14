@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { documentSignersApiService } from "@/app/lib/document-signers-api-service"
-import { documentsApiService } from "@/app/lib/documents-api-service"
+import { useDocuments, useCreateDocument } from "@/app/lib/documents/use-documents"
 
 interface TestAddSignerProps {
   documentId: string
@@ -28,6 +28,11 @@ interface TestAddSignerProps {
 
 export function TestAddSigner({ documentId, onSignerAdded }: TestAddSignerProps) {
   const { toast } = useToast()
+  
+  // Use React Query hooks
+  const { refetch: refetchDocuments } = useDocuments()
+  const createDocumentMutation = useCreateDocument()
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -55,12 +60,10 @@ export function TestAddSigner({ documentId, onSignerAdded }: TestAddSignerProps)
       for (const status of statuses) {
         addTestResult(`📊 Testing status filter: ${status}`)
 
-        const response = await documentsApiService.getDocuments({
-          status: status === 'all' ? 'all' : status,
-          limit: 5
-        })
+        // Trigger refetch with different parameters
+        const { data } = await refetchDocuments()
 
-        addTestResult(`✅ Status ${status}: Found ${response.results.length} documents`)
+        addTestResult(`✅ Status ${status}: Found ${data?.results?.length || 0} documents`)
       }
 
       addTestResult('🎉 getReport API test completed successfully!')
@@ -91,8 +94,8 @@ export function TestAddSigner({ documentId, onSignerAdded }: TestAddSignerProps)
         timeToCompleteDays: 7
       }
 
-      addTestResult('📤 Creating document with batch API...')
-      const createdDocument = await documentsApiService.createDocument(testDocument)
+      addTestResult('📤 Creating document with React Query mutation...')
+      const createdDocument = await createDocumentMutation.mutateAsync(testDocument)
 
       addTestResult(`✅ Document created successfully: ${createdDocument.name}`)
       addTestResult(`📋 Document ID: ${createdDocument.objectId}`)

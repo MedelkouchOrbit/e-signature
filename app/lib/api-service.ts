@@ -1,4 +1,4 @@
-import { API_BASE_URL, API_OPENSIGN_URL, OPENSIGN_APP_ID } from "./constants";
+import { API_BASE_URL, API_OPENSIGN_URL } from "./constants";
 
 // Generic API error class
 export class ApiError extends Error {
@@ -143,50 +143,143 @@ export const apiService = {
 
 // OpenSign API service (uses proxy for client-side, direct URL for server-side)
 export const openSignApiService = {
-  get: async <T>(path: string): Promise<T> => {
+  get: async <T>(path: string, params: Record<string, unknown> = {}): Promise<T> => {
     // Use different base URLs for client-side (browser) vs server-side (SSR/API routes)
     const baseUrl = typeof window === 'undefined' 
-      ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:8080/app"
+      ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:9000/app"
       : API_OPENSIGN_URL;
     
     const sessionToken = getSessionToken();
-    console.log(`[OpenSign API] GET ${baseUrl}/${path}`);
-    console.log(`[OpenSign API] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+    
+    // ✅ OpenSign format: ALL endpoints use POST with metadata in body, no Parse headers
+    const isParseRestAPI = path.startsWith('users/') || path.startsWith('classes/') || path.startsWith('installations/') || path.startsWith('roles/') || path.startsWith('sessions/');
+    
+    const openSignData = {
+      ...params,
+      _ApplicationId: "opensign",
+      _ClientVersion: "js6.1.1",
+      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+      ...(sessionToken && { _SessionToken: sessionToken }),
+      // Add _method: "GET" for Parse REST API endpoints
+      ...(isParseRestAPI && { _method: "GET" })
+    };
+    
+    console.log(`[OpenSign] POST ${baseUrl}/${path} (${isParseRestAPI ? 'Parse REST with _method: GET' : 'Cloud Function'})`);
+    console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+    console.log(`[OpenSign] Data:`, openSignData);
     
     const response = await fetch(`${baseUrl}/${path}`, {
-      method: "GET",
+      method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "X-Parse-Application-Id": OPENSIGN_APP_ID,
-        "X-Parse-Session-Token": sessionToken,
+        "Content-Type": "text/plain",
       },
+      body: JSON.stringify(openSignData),
     });
     
-    console.log(`[OpenSign API] Response status: ${response.status}`);
+    console.log(`[OpenSign] Response status: ${response.status}`);
     const result = await handleResponse<T>(response);
-    console.log(`[OpenSign API] Response data:`, result);
+    console.log(`[OpenSign] Response data:`, result);
     return result;
   },
 
   post: async <T, D = unknown>(path: string, data: D): Promise<T> => {
     // Use different base URLs for client-side (browser) vs server-side (SSR/API routes)
     const baseUrl = typeof window === 'undefined' 
-      ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:8080/app"
+      ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:9000"
       : API_OPENSIGN_URL;
     
     const sessionToken = getSessionToken();
-    console.log(`[OpenSign API] POST ${baseUrl}/${path}`);
-    console.log(`[OpenSign API] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
-    console.log(`[OpenSign API] Data:`, data);
+    
+    // ✅ OpenSign format: ALL requests use POST with metadata in body, Content-Type: text/plain
+    const openSignData = {
+      ...data,
+      _ApplicationId: "opensign",
+      _ClientVersion: "js6.1.1",
+      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+      ...(sessionToken && { _SessionToken: sessionToken })
+    };
+    
+    console.log(`[OpenSign] POST ${baseUrl}/${path}`);
+    console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+    console.log(`[OpenSign] Data:`, openSignData);
     
     const response = await fetch(`${baseUrl}/${path}`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "X-Parse-Application-Id": OPENSIGN_APP_ID,
-        "X-Parse-Session-Token": sessionToken,
+        "Content-Type": "text/plain",
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(openSignData),
+    });
+    
+    console.log(`[OpenSign] Response status: ${response.status}`);
+    const result = await handleResponse<T>(response);
+    console.log(`[OpenSign] Response data:`, result);
+    return result;
+  },
+
+  put: async <T, D = unknown>(path: string, data: D): Promise<T> => {
+    // Use different base URLs for client-side (browser) vs server-side (SSR/API routes)
+    const baseUrl = typeof window === 'undefined' 
+      ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:9000/app"
+      : API_OPENSIGN_URL;
+    
+    const sessionToken = getSessionToken();
+    
+    // ✅ OpenSign format: ALL requests use POST with metadata in body, Content-Type: text/plain
+    const openSignData = {
+      ...data,
+      _method: "PUT",
+      _ApplicationId: "opensign",
+      _ClientVersion: "js6.1.1",
+      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+      ...(sessionToken && { _SessionToken: sessionToken })
+    };
+    
+    console.log(`[OpenSign] POST ${baseUrl}/${path} (with _method: PUT)`);
+    console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+    console.log(`[OpenSign] Data:`, openSignData);
+    
+    const response = await fetch(`${baseUrl}/${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain",
+      },
+      body: JSON.stringify(openSignData),
+    });
+    
+    console.log(`[OpenSign] Response status: ${response.status}`);
+    const result = await handleResponse<T>(response);
+    console.log(`[OpenSign] Response data:`, result);
+    return result;
+  },
+
+  delete: async <T>(path: string, params: Record<string, unknown> = {}): Promise<T> => {
+    // Use different base URLs for client-side (browser) vs server-side (SSR/API routes)
+    const baseUrl = typeof window === 'undefined' 
+      ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:9000/app"
+      : API_OPENSIGN_URL;
+    
+    const sessionToken = getSessionToken();
+    
+    // ✅ FIX: Add OpenSign metadata and session token to query parameters for DELETE requests
+    const openSignParams = {
+      ...params,
+      _ApplicationId: "opensign",
+      _ClientVersion: "js6.1.1",
+      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+      ...(sessionToken && { _SessionToken: sessionToken })
+    };
+    
+    // Convert params to query string
+    const queryString = Object.keys(openSignParams).length > 0 
+      ? '?' + new URLSearchParams(openSignParams as Record<string, string>).toString()
+      : '';
+    
+    console.log(`[OpenSign API] DELETE ${baseUrl}/${path}${queryString}`);
+    console.log(`[OpenSign API] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+    
+    const response = await fetch(`${baseUrl}/${path}${queryString}`, {
+      method: "DELETE",
     });
     
     console.log(`[OpenSign API] Response status: ${response.status}`);
@@ -195,39 +288,39 @@ export const openSignApiService = {
     return result;
   },
 
-  put: async <T, D = unknown>(path: string, data: D): Promise<T> => {
+  // Parse Server cloud function calls
+  callFunction: async <T>(functionName: string, params: Record<string, unknown> = {}, options?: { sessionToken?: string }): Promise<T> => {
     // Use different base URLs for client-side (browser) vs server-side (SSR/API routes)
     const baseUrl = typeof window === 'undefined' 
-      ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:8080/app"
+      ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:9000/app"
       : API_OPENSIGN_URL;
     
-    const response = await fetch(`${baseUrl}/${path}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Parse-Application-Id": OPENSIGN_APP_ID,
-        "X-Parse-Session-Token": getSessionToken(),
-      },
-      body: JSON.stringify(data),
-    });
-    return handleResponse<T>(response);
-  },
-
-  delete: async <T>(path: string): Promise<T> => {
-    // Use different base URLs for client-side (browser) vs server-side (SSR/API routes)
-    const baseUrl = typeof window === 'undefined' 
-      ? process.env.OPENSIGN_BASE_URL || "http://94.249.71.89:8080/app"
-      : API_OPENSIGN_URL;
+    const sessionToken = options?.sessionToken || getSessionToken();
     
-    const response = await fetch(`${baseUrl}/${path}`, {
-      method: "DELETE",
+    // ✅ FIX: Add OpenSign metadata and session token to function parameters
+    const openSignParams = {
+      ...params,
+      _ApplicationId: "opensign",
+      _ClientVersion: "js6.1.1",
+      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+      ...(sessionToken && { _SessionToken: sessionToken })
+    };
+    
+    console.log(`[OpenSign Cloud Function] Calling ${functionName} with params:`, openSignParams);
+    console.log(`[OpenSign Cloud Function] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+    
+    const response = await fetch(`${baseUrl}/functions/${functionName}`, {
+      method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "X-Parse-Application-Id": OPENSIGN_APP_ID,
-        "X-Parse-Session-Token": getSessionToken(),
+        "Content-Type": "text/plain",
       },
+      body: JSON.stringify(openSignParams),
     });
-    return handleResponse<T>(response);
+    
+    console.log(`[OpenSign Cloud Function] ${functionName} response status: ${response.status}`);
+    const result = await handleResponse<T>(response);
+    console.log(`[OpenSign Cloud Function] ${functionName} response data:`, result);
+    return result;
   },
 
   // Session management utilities

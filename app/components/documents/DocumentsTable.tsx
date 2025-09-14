@@ -28,7 +28,8 @@ import {
   Plus
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useDocumentsStore, type Document } from "@/app/lib/documents-store"
+import { useDocuments } from "@/app/lib/documents/use-documents"
+import type { Document } from "@/app/lib/documents/documents-types"
 import { useToast } from "@/hooks/use-toast"
 
 interface ShareDialogState {

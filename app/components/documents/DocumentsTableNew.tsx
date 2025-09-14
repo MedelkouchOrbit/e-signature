@@ -29,10 +29,14 @@ import {
   Bell
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useDocumentsStore } from "@/app/lib/documents-store-new"
-import { type Document, type DocumentStatus, checkUserSignPermission } from "@/app/lib/documents-api-service"
+import { useDocumentsStore } from "@/app/lib/documents-store"
+import { type Document, type DocumentStatus } from "@/app/lib/documents/documents-types"
+import { checkUserSignPermission } from "@/app/lib/documents/document-permissions"
 import { useToast } from "@/hooks/use-toast"
 import { reminderApiService } from "@/app/lib/reminder-api-service"
+
+// Note: Modern OpenSign document services are available at @/app/lib/opensign/document-services
+// This component can be migrated to use useDrive, useDocument, useSignDocument when needed
 
 // Custom hook to check user permissions for documents
 function useDocumentPermissions(documents: Document[]) {

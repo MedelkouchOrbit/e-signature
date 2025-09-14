@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertCircle, Loader2, Users, Building2, Search } from "lucide-react"
+import { AlertCircle, Loader2, Users, Building2, Search, UserPlus } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { AddMemberToTeamModal } from './AddMemberToTeamModal-New'
 
 interface TeamMember {
   objectId: string
@@ -41,6 +42,7 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
   const [searchTerm, setSearchTerm] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false)
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
@@ -77,6 +79,7 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
       setCurrentTab('team-info')
       setSearchTerm('')
       setError(null)
+      setIsAddMemberModalOpen(false) // Close add member modal too
       onClose()
     }
   }
@@ -103,6 +106,30 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
         return [...prev, member]
       }
     })
+  }
+
+  const handleAddNewMember = async (userData: {
+    name: string
+    email: string
+    password: string
+    role: string
+    company?: string
+  }) => {
+    // Create a new TeamMember object from the userData
+    const newMember: TeamMember = {
+      objectId: `temp-${Date.now()}`, // Temporary ID
+      Name: userData.name,
+      Email: userData.email,
+      UserRole: userData.role,
+      Company: userData.company,
+      createdAt: new Date().toISOString()
+    }
+    
+    // Add to selected members
+    setSelectedMembers(prev => [...prev, newMember])
+    
+    // Close the add member modal
+    setIsAddMemberModalOpen(false)
   }
 
   const filteredMembers = organizationMembers.filter(member =>
@@ -197,8 +224,20 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="font-medium">Select Team Members</h4>
-                <div className="text-sm text-muted-foreground">
-                  {selectedMembers.length} of {organizationMembers.length} selected
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsAddMemberModalOpen(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Add New Member
+                  </Button>
+                  <div className="text-sm text-muted-foreground">
+                    {selectedMembers.length} of {organizationMembers.length} selected
+                  </div>
                 </div>
               </div>
 
@@ -323,6 +362,15 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {/* Add Member Modal */}
+      <AddMemberToTeamModal
+        isOpen={isAddMemberModalOpen}
+        onClose={() => setIsAddMemberModalOpen(false)}
+        onSubmit={handleAddNewMember}
+        teamName={formData.name || "New Team"}
+        teamId="" // Empty since we're creating a new team
+      />
     </Dialog>
   )
 }
