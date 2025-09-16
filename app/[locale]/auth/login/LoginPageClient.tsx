@@ -56,7 +56,7 @@ export function LoginPageClient() {
             { 
               id: response.objectId || 'user', 
               email: email,
-              name: response.name || response.username
+              ...(response.name && { name: response.name })
             },
             response.sessionToken
           )

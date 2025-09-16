@@ -143,9 +143,20 @@ export const templatesApiService = {
       if (response.error) {
         throw new Error(`OpenSign API Error: ${response.error}`)
       }
+
+      // Log the response structure for debugging
+      console.log('Templates API response:', {
+        hasResult: !!response.result,
+        resultType: typeof response.result,
+        isArray: Array.isArray(response.result),
+        resultKeys: response.result ? Object.keys(response.result) : 'null/undefined'
+      })
+      
+      // Ensure response.result is an array before mapping
+      const resultData = Array.isArray(response.result) ? response.result : []
       
       // Transform OpenSign template format to our format
-      const templates = response.result?.map(result => transformOpenSignTemplate(result)) || []
+      const templates = resultData.map(result => transformOpenSignTemplate(result))
       
       return {
         results: templates,

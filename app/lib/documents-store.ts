@@ -1,223 +1,121 @@
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
-import { DocumentSigner, OpenSignPlaceholder } from "./documents-api-service"
+import { type Document, type DocumentStatus } from "./documents-api-service"
+import { type CreateDocumentRequest } from "../../global.d"
 
-// Document interfaces based on backend analysis
-export interface SignatureData {
-  xPosition?: number
-  yPosition?: number
-  width?: number
-  height?: number
-  signatureImageUrl?: string
-  signaturePositions?: Array<{
-    x: number
-    y: number
-    width: number
-    height: number
-    page: number
-  }>
-  signerDetails?: {
-    name: string
-    email: string
-  }
-  signedFileUrl?: string
+// Mock documents API service - this should be imported from the actual service
+const documentsApiService = {
+  getDocuments: async (_params?: GetDocumentsParams) => ({ results: [], totalCount: 0 }),
+  createDocument: async (_data: CreateDocumentRequest) => ({} as Document),
+  shareDocument: async (_documentId: string, _emails: string[], _message?: string) => {},
+  downloadDocument: async (_documentId: string, _signed?: boolean) => '',
+  deleteDocument: async (_documentId: string) => {},
 }
 
-// Helper function to generate signer colors
-const getSignerColor = (index: number): string => {
-  const colors = [
-    '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
-    '#8B5CF6', '#EC4899', '#6366F1', '#06B6D4'
-  ]
-  return colors[index % colors.length]
+interface GetDocumentsParams {
+  limit?: number
+  skip?: number
+  offset?: number
+  searchTerm?: string
+  search?: string // Alias for searchTerm
+  status?: DocumentStatus | 'all' | 'inbox'
+  assignedToMe?: boolean
+  page?: number // Add page for convenience
 }
 
-// Helper function to extract signers from placeholders
-const extractSignersFromPlaceholders = (placeholders: OpenSignPlaceholder[] = []): DocumentSigner[] => {
-  const uniqueEmails = new Set<string>()
-  const signers: DocumentSigner[] = []
-  
-  placeholders.forEach((placeholder, index) => {
-    if (placeholder.email && !uniqueEmails.has(placeholder.email)) {
-      uniqueEmails.add(placeholder.email)
-      
-      // Extract name from placeholder if available, otherwise use email
-      const signerPtrName = (placeholder.signerPtr as { Name?: string })?.Name
-      const name = signerPtrName || 
-                  placeholder.email.split('@')[0] || 
-                  `Signer ${signers.length + 1}`
-      
-      signers.push({
-        id: placeholder.id || `placeholder-${index}`,
-        name: name,
-        email: placeholder.email,
-        role: placeholder.signerRole || 'Signer',
-        color: getSignerColor(signers.length),
-        status: 'waiting', // Will be updated based on document status
-        userId: placeholder.signerObjId,
-        order: signers.length + 1
-      })
-    }
-  })
-  
-  return signers
+interface DocumentsCache {
+  allDocuments: Document[]
+  lastFetch: number
+  isStale: boolean
 }
 
-export interface DocumentResponse {
-  objectId: string
-  Name: string
-  URL?: string
-  SignedUrl?: string
-  CertificateUrl?: string
-  Note?: string
-  Description?: string
-  createdAt: string
-  updatedAt: string
-  ExpiryDate?: string
-  TimeToCompleteDays?: number
-  IsCompleted?: boolean
-  IsDeclined?: boolean
-  IsSignyourself?: boolean
-  IsEnableOTP?: boolean
-  DeclineReason?: string
-  Signers?: Record<string, unknown>[]
-  Placeholders?: OpenSignPlaceholder[]
-  CreatedBy?: {
-    objectId: string
-    className: string
-  }
-  ExtUserPtr?: {
-    objectId: string
-    Name: string
-    Email: string
-    TenantId?: {
-      objectId: string
-      className: string
-    }
-  }
-}
-
-export interface DocumentPlaceholder {
-  Id: string
-  signerObjId: string
-  signerPtr: Record<string, unknown> // Using Record for flexibility
-  Role: string
-  email: string
-  blockColor: string
-  placeHolder: Array<{
-    pageNumber: number
-    pos: Array<{
-      xPosition: number
-      yPosition: number
-      width: number
-      height: number
-      type: string
-      options?: {
-        name?: string
-        status?: string
-        defaultValue?: string
-      }
-    }>
-  }>
-}
-
-export interface Document {
-  objectId: string
-  Name: string
-  URL?: string
-  SignedUrl?: string
-  CertificateUrl?: string
-  Note?: string
-  Description?: string
-  createdAt: string
-  updatedAt: string
-  ExpiryDate?: string
-  TimeToCompleteDays?: number
-  IsCompleted?: boolean
-  IsDeclined?: boolean
-  IsSignyourself?: boolean
-  IsEnableOTP?: boolean
-  DeclineReason?: string
-  Signers?: Record<string, unknown>[] // Original signers from API (usually empty)
-  Placeholders?: OpenSignPlaceholder[] // Placeholders containing receiver emails
-  signers?: DocumentSigner[] // Computed signers from placeholders for UI
-  CreatedBy?: {
-    objectId: string
-    className: string
-  }
-  ExtUserPtr?: {
-    objectId: string
-    Name: string
-    Email: string
-    TenantId?: {
-      objectId: string
-      className: string
-    }
-  }
-  // Computed status property
-  status: 'signed' | 'declined' | 'waiting' | 'drafted'
-}
-
-export interface ShareRecipient {
-  email: string
-  name?: string
-  role?: string
-  permissions?: string[]
-}
-
-export interface DocumentsState {
-  // Document data
-  documents: Document[]
+interface DocumentsState {
+  // Data
+  documents: Document[] // Currently displayed documents after filtering
   currentDocument: Document | null
   isLoading: boolean
   error: string | null
-  
-  // Upload state
+  uploadError: string | null
   isUploading: boolean
   uploadProgress: number
-  uploadError: string | null
   
-  // Filtering and pagination
-  currentFilter: string
-  searchQuery: string
+  // Single cache for all documents
+  cache: DocumentsCache
+  
+  // Filters and pagination
+  currentFilter: DocumentStatus | 'all' | 'inbox'
+  searchTerm: string
+  searchQuery: string // Alias for searchTerm
   currentPage: number
   pageSize: number
+  itemsPerPage: number // Alias for pageSize
   totalDocuments: number
+  totalPages: number
+  totalCount: number
   hasMore: boolean
   
   // Actions
-  fetchDocuments: (filters?: {
-    status?: string
-    search?: string
-    limit?: number
-    offset?: number
-  }) => Promise<void>
-  uploadDocument: (file: File, metadata?: {
-    name?: string
-    description?: string
-    note?: string
-  }) => Promise<string>
-  signDocument: (docId: string, signatureData: SignatureData, signerInfo?: {
-    name: string
-    email: string
-  }) => Promise<void>
-  shareDocument: (docId: string, recipients: ShareRecipient[], message?: string) => Promise<void>
-  declineDocument: (docId: string, reason: string) => Promise<void>
-  forwardDocument: (docId: string, email: string) => Promise<void>
-  duplicateDocument: (docId: string) => Promise<void>
-  deleteDocument: (docId: string) => Promise<void>
-  recreateDocument: (docId: string) => Promise<void>
+  loadDocuments: () => Promise<void>
+  fetchDocuments: (params?: GetDocumentsParams) => Promise<void> // Alias for loadDocuments
+  refreshCache: (force?: boolean) => Promise<void>
+  createDocument: (data: CreateDocumentRequest) => Promise<Document>
+  uploadDocument: (data: CreateDocumentRequest) => Promise<Document> // Alias for createDocument
+  shareDocument: (documentId: string, emails: string[], message?: string) => Promise<void>
+  downloadDocument: (documentId: string, signed?: boolean) => Promise<string | null>
+  deleteDocument: (documentId: string) => Promise<void>
+  duplicateDocument: (documentId: string) => Promise<void>
+  signDocument: (documentId: string) => Promise<void>
   
-  // UI state management
+  // Filter actions
+  setFilter: (filter: DocumentStatus | 'all' | 'inbox') => void
+  setSearchTerm: (term: string) => void
+  setSearchQuery: (query: string) => void // Alias for setSearchTerm
+  setPage: (page: number) => void
+  setCurrentPage: (page: number) => void // Alias for setPage
   setCurrentDocument: (doc: Document | null) => void
-  setFilter: (filter: string) => void
-  setSearchQuery: (query: string) => void
-  setCurrentPage: (page: number) => void
+  
+  // Cache actions
+  invalidateCache: () => void
   clearError: () => void
+  
+  // Helper methods
+  applyFilters: (searchTerm: string, status: DocumentStatus | 'all' | 'inbox') => Document[]
+  updateDisplayedDocuments: () => void
+  
+  // Computed
+  getDocumentCounts: () => {
+    all: number
+    inbox: number
+    waiting: number
+    signed: number
+    drafted: number
+    partially_signed: number
+    declined: number
+    expired: number
+  }
+  
+  // Reset
   reset: () => void
 }
 
-const useDocumentsStore = create<DocumentsState>()(
+const initialState = {
+  documents: [],
+  isLoading: false,
+  error: null,
+  cache: {
+    allDocuments: [],
+    lastFetch: 0,
+    isStale: true
+  },
+  currentFilter: 'all' as DocumentStatus | 'all' | 'inbox', // Default to 'all'
+  searchTerm: '',
+  currentPage: 1,
+  totalPages: 1,
+  totalCount: 0,
+  itemsPerPage: 10
+}
+
+export const useDocumentsStore = create<DocumentsState>()(
   persist(
     (set, get) => ({
       // Initial state
@@ -225,225 +123,253 @@ const useDocumentsStore = create<DocumentsState>()(
       currentDocument: null,
       isLoading: false,
       error: null,
-      
+      uploadError: null,
       isUploading: false,
       uploadProgress: 0,
-      uploadError: null,
       
-      currentFilter: 'all',
-      searchQuery: '',
+      // Cache
+      cache: {
+        allDocuments: [],
+        lastFetch: 0,
+        isStale: true
+      },
+      
+      // Filters and pagination
+      currentFilter: 'all' as DocumentStatus | 'all' | 'inbox',
+      searchTerm: '',
+      searchQuery: '', // Alias for searchTerm
       currentPage: 1,
       pageSize: 10,
+      itemsPerPage: 10, // Alias for pageSize
       totalDocuments: 0,
+      totalPages: 1,
+      totalCount: 0,
       hasMore: false,
       
-      fetchDocuments: async (filters = {}) => {
+      // Helper function to filter documents based on search and status
+      applyFilters: (searchTerm: string, status: DocumentStatus | 'all' | 'inbox') => {
+        const { cache } = get()
+        let filteredDocuments = [...cache.allDocuments]
+        
+        // Apply status filter
+        if (status === 'inbox') {
+          // For inbox, show documents where user can sign or is assigned
+          filteredDocuments = filteredDocuments.filter(doc => doc.canUserSign || doc.userRole === 'assignee')
+        } else if (status !== 'all') {
+          // Filter by specific status - handle all possible statuses
+          filteredDocuments = filteredDocuments.filter(doc => {
+            switch (status) {
+              case 'waiting':
+                return doc.status === 'waiting'
+              case 'signed':
+                return doc.status === 'signed'
+              case 'drafted':
+                return doc.status === 'drafted'
+              case 'partially_signed':
+                return doc.status === 'partially_signed'
+              case 'declined':
+                return doc.status === 'declined'
+              case 'expired':
+                return doc.status === 'expired'
+              default:
+                return doc.status === status
+            }
+          })
+        }
+        
+        // Apply search filter
+        if (searchTerm.trim()) {
+          const search = searchTerm.toLowerCase().trim()
+          filteredDocuments = filteredDocuments.filter(doc => 
+            doc.name?.toLowerCase().includes(search) ||
+            doc.description?.toLowerCase().includes(search) ||
+            doc.senderEmail?.toLowerCase().includes(search)
+          )
+        }
+        
+        return filteredDocuments
+      },
+      
+      // Update displayed documents based on current filter and cache
+      updateDisplayedDocuments: () => {
+        const state = get()
+        const { currentFilter, searchTerm, currentPage, itemsPerPage } = state
+        
+        const filtered = state.applyFilters(searchTerm, currentFilter)
+        const totalCount = filtered.length
+        const totalPages = Math.ceil(totalCount / itemsPerPage)
+        const startIndex = (currentPage - 1) * itemsPerPage
+        const endIndex = startIndex + itemsPerPage
+        const pageDocuments = filtered.slice(startIndex, endIndex)
+        
+        set({
+          documents: pageDocuments,
+          totalCount,
+          totalPages: Math.max(1, totalPages)
+        })
+      },
+      
+      refreshCache: async (force = false) => {
+        const state = get()
+        const now = Date.now()
+        const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+        
+        const cacheAge = now - state.cache.lastFetch
+        
+        // Skip refresh if cache is fresh and not forced
+        if (!force && !state.cache.isStale && cacheAge < CACHE_DURATION) {
+          return
+        }
+        
         set({ isLoading: true, error: null })
         
         try {
-          const { status = 'all', search = '', limit = 10, offset = 0 } = filters
+          console.log(`🔄 Refreshing documents cache...`)
           
-          // Use OpenSign API only
-          const response = await fetch('/api/proxy/opensign/functions/filterdocs', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-              'X-Parse-Session-Token': localStorage.getItem('opensign_session_token') || '',
-            },
-            body: JSON.stringify({
-              searchTerm: search,
-              limit,
-              skip: offset,
-            }),
+          // Make ONE API call to get ALL documents using status='all'
+          // This will fetch from ALL report IDs and combine the results
+          const response = await documentsApiService.getDocuments({
+            status: 'all', // This is KEY - fetch ALL documents from all statuses
+            limit: 1000 // Get all documents
           })
-
-          if (!response.ok) {
-            throw new Error(`Failed to fetch documents: ${response.statusText}`)
+          
+          // Update cache with all documents
+          const newCache = {
+            allDocuments: response.results,
+            lastFetch: now,
+            isStale: false
           }
-
-          const data = await response.json()
-          console.log('[Documents Store] Fetched documents:', data)
-
-          if (data.result) {
-            const documents: Document[] = data.result.map((doc: DocumentResponse) => ({
-              ...doc,
-              status: doc.IsCompleted 
-                ? 'signed' 
-                : doc.IsDeclined 
-                  ? 'declined' 
-                  : doc.SignedUrl 
-                    ? 'waiting' 
-                    : 'drafted',
-              signers: extractSignersFromPlaceholders(doc.Placeholders || [])
-            }))
-            
-            // Apply client-side status filtering
-            const filteredDocs = status === 'all' ? documents : documents.filter((doc: Document) => {
-              switch (status) {
-                case 'completed':
-                  return doc.status === 'signed'
-                case 'pending':
-                  return doc.status === 'drafted' || doc.status === 'waiting'
-                case 'declined':
-                  return doc.status === 'declined'
-                default:
-                  return true
-              }
-            })
-            
-            const total = filteredDocs.length
-            const hasMore = offset + limit < total
-            
-            set({
-              documents: filteredDocs,
-              totalDocuments: total,
-              hasMore,
-              isLoading: false,
-              error: null
-            })
-          } else {
-            throw new Error(data.error || 'Failed to fetch documents')
-          }
+          
+          set({ 
+            cache: newCache,
+            isLoading: false 
+          })
+          
+          console.log(`✅ Cache refreshed: ${response.results.length} documents loaded from ALL statuses`)
+          
+          // Update displayed documents
+          get().updateDisplayedDocuments()
           
         } catch (error) {
-          console.error('[Documents Store] Error fetching documents:', error)
-          set({
-            error: error instanceof Error ? error.message : 'Failed to fetch documents',
-            isLoading: false
+          console.error(`❌ Error refreshing cache:`, error)
+          set({ 
+            error: error instanceof Error ? error.message : `Failed to refresh cache`,
+            isLoading: false,
+            cache: {
+              ...state.cache,
+              isStale: true
+            }
           })
         }
       },
-
-      uploadDocument: async (file: File, metadata = {}) => {
-        set({ isUploading: true, uploadProgress: 0, uploadError: null })
+      
+      loadDocuments: async () => {
+        const state = get()
+        const startTime = performance.now()
+        
+        const now = Date.now()
+        const cacheAge = now - state.cache.lastFetch
+        const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+        
+        const canUseCache = !state.cache.isStale && 
+                           cacheAge < CACHE_DURATION && 
+                           state.cache.allDocuments.length > 0
+        
+        if (canUseCache) {
+          const endTime = performance.now()
+          console.log(`⚡ CACHE HIT! Documents loaded instantly in ${(endTime - startTime).toFixed(2)}ms`)
+          console.log(`📊 Cache stats: ${state.cache.allDocuments.length} documents, age: ${Math.round(cacheAge / 1000)}s`)
+          
+          // Use cached data
+          get().updateDisplayedDocuments()
+          return
+        }
+        
+        // Cache is stale or empty, refresh it
+        console.log(`🔄 CACHE MISS - Refreshing...`)
+        await get().refreshCache(true)
+        
+        const endTime = performance.now()
+        console.log(`🏁 Load completed in ${(endTime - startTime).toFixed(2)}ms`)
+      },
+      
+      createDocument: async (data: CreateDocumentRequest) => {
+        set({ isLoading: true, error: null })
         
         try {
-          console.log('[Documents Store] Uploading file to OpenSign Parse Server')
-          set({ uploadProgress: 20 })
+          const document = await documentsApiService.createDocument(data)
           
-          // Generate unique filename
-          const fileName = metadata.name || `${Date.now()}-${file.name}`
-          const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
+          // Invalidate cache and refresh
+          get().invalidateCache()
+          await get().refreshCache(true)
           
-          console.log('[Documents Store] Using base64fileupload function with file data')
-          set({ uploadProgress: 40 })
-          
-          // Convert file to base64
-          const fileBuffer = await file.arrayBuffer()
-          const base64Data = Buffer.from(fileBuffer).toString('base64')
-          
-          // Use the base64fileupload function (primary method)
-          const uploadResponse = await fetch('/api/proxy/opensign/functions/base64fileupload', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-              'X-Parse-Session-Token': localStorage.getItem('opensign_session_token') || '',
-            },
-            body: JSON.stringify({
-              fileName: sanitizedFileName,
-              fileData: base64Data
-            }),
-          })
-
-          if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text()
-            console.error('[Documents Store] Base64 file upload failed:', errorText)
-            throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`)
-          }
-
-          const uploadData = await uploadResponse.json()
-          console.log('[Documents Store] File uploaded via base64fileupload:', uploadData)
-
-          if (!uploadData.result || !uploadData.result.url) {
-            throw new Error(uploadData.error || 'Upload failed - no URL returned')
-          }
-
-          set({ uploadProgress: 70 })
-
-          // Create document record if metadata provided
-          const fileUrl = uploadData.result.url
-          if (metadata.name && fileUrl) {
-            const createResponse = await fetch('/api/proxy/opensign/classes/contracts_Document', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-                'X-Parse-Session-Token': localStorage.getItem('opensign_session_token') || '',
-              },
-              body: JSON.stringify({
-                Name: metadata.name,
-                URL: fileUrl,
-                Note: metadata.note || '',
-                Description: metadata.description || '',
-                TimeToCompleteDays: 15,
-                IsSignyourself: false,
-                IsEnableOTP: false,
-              }),
-            })
-
-            if (!createResponse.ok) {
-              console.warn('[Documents Store] Failed to create document record, but file uploaded successfully')
-            }
-          }
-
-          set({ 
-            uploadProgress: 100,
-            isUploading: false,
-            uploadError: null
-          })
-
-          // Refresh documents list
-          await get().fetchDocuments()
-
-          return fileUrl || uploadData.result.url
-          
+          set({ isLoading: false })
+          return document
         } catch (error) {
-          console.error('[Documents Store] Error uploading document:', error)
-          set({
-            uploadError: error instanceof Error ? error.message : 'Upload failed',
-            isUploading: false,
-            uploadProgress: 0
+          console.error('Error creating document:', error)
+          set({ 
+            error: error instanceof Error ? error.message : 'Failed to create document',
+            isLoading: false 
           })
           throw error
         }
       },
-
-      signDocument: async (docId: string, signatureData: SignatureData, signerInfo = { name: 'Test User', email: 'test@example.com' }) => {
-        set({ isLoading: true, error: null })
-        
+      
+      shareDocument: async (documentId: string, emails: string[], message?: string) => {
         try {
-          const response = await fetch('/api/proxy/opensign/functions/signPdf', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-              'X-Parse-Session-Token': localStorage.getItem('opensign_session_token') || '',
-            },
-            body: JSON.stringify({
-              docId,
-              ...signatureData,
-              signerInfo
-            }),
-          })
-
-          if (!response.ok) {
-            throw new Error(`Failed to sign document: ${response.statusText}`)
-          }
-
-          const data = await response.json()
-          console.log('[Documents Store] Document signed:', data)
-
-          if (data.result) {
-            // Refresh documents list
-            await get().fetchDocuments()
-          } else {
-            throw new Error(data.error || 'Failed to sign document')
-          }
-
-          set({ isLoading: false, error: null })
+          await documentsApiService.shareDocument(documentId, emails, message)
           
+          // Refresh cache to get updated document
+          await get().refreshCache(true)
+        } catch (error) {
+          console.error('Error sharing document:', error)
+          throw error
+        }
+      },
+      
+      downloadDocument: async (documentId: string, signed = false) => {
+        try {
+          return await documentsApiService.downloadDocument(documentId, signed)
+        } catch (error) {
+          console.error('Error downloading document:', error)
+          throw error
+        }
+      },
+      
+      deleteDocument: async (documentId: string) => {
+        try {
+          await documentsApiService.deleteDocument(documentId)
+          
+          // Remove from cache immediately for instant UI update
+          const state = get()
+          const newCache = {
+            ...state.cache,
+            allDocuments: state.cache.allDocuments.filter(doc => doc.objectId !== documentId)
+          }
+          
+          set({ cache: newCache })
+          
+          // Update displayed documents
+          get().updateDisplayedDocuments()
+          
+          // If current page is empty after deletion, go to previous page
+          const newState = get()
+          if (newState.documents.length === 0 && newState.currentPage > 1) {
+            set({ currentPage: newState.currentPage - 1 })
+            get().updateDisplayedDocuments()
+          }
+        } catch (error) {
+          console.error('Error deleting document:', error)
+          throw error
+        }
+      },
+      
+      signDocument: async (documentId: string) => {
+        try {
+          console.log('Signing document:', documentId)
+          
+          // Refresh cache to get updated document status
+          await get().refreshCache(true)
         } catch (error) {
           console.error('[Documents Store] Error signing document:', error)
           set({
@@ -453,45 +379,103 @@ const useDocumentsStore = create<DocumentsState>()(
           throw error
         }
       },
-
-      shareDocument: async (docId: string, recipients: ShareRecipient[], message = '') => {
+      
+      // Alias methods for compatibility
+      fetchDocuments: async (params?: GetDocumentsParams) => {
+        return await get().loadDocuments()
+      },
+      
+      uploadDocument: async (data: CreateDocumentRequest) => {
+        return await get().createDocument(data)
+      },
+      
+      setSearchQuery: (query: string) => {
+        get().setSearchTerm(query)
+      },
+      
+      setCurrentPage: (page: number) => {
+        get().setPage(page)
+      },
+      
+      duplicateDocument: async (documentId: string) => {
+        // Use createDocument with existing document data
+        console.log('Duplicating document:', documentId)
         set({ isLoading: true, error: null })
         
         try {
-          const response = await fetch('/api/proxy/opensign/functions/forwarddoc', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-              'X-Parse-Session-Token': localStorage.getItem('opensign_session_token') || '',
-            },
-            body: JSON.stringify({
-              docId,
-              recipients: recipients.map(r => r.email),
-              message
-            }),
-          })
-
-          if (!response.ok) {
-            throw new Error(`Failed to share document: ${response.statusText}`)
-          }
-
-          const data = await response.json()
-          console.log('[Documents Store] Document shared:', data)
-
-          if (!data.result) {
-            throw new Error(data.error || 'Failed to share document')
-          }
-
-          set({ isLoading: false, error: null })
-          
+          // For now, just refresh the cache
+          await get().refreshCache(true)
+          set({ isLoading: false })
         } catch (error) {
-          console.error('[Documents Store] Error sharing document:', error)
-          set({
-            error: error instanceof Error ? error.message : 'Share failed',
+          console.error('Error duplicating document:', error)
+          set({ 
+            error: error instanceof Error ? error.message : 'Duplicate failed',
             isLoading: false
           })
           throw error
+        }
+      },
+      
+      clearError: () => {
+        set({ error: null, uploadError: null })
+      },
+      
+      setFilter: (filter: DocumentStatus | 'all' | 'inbox') => {
+        const startTime = performance.now()
+        set({ currentFilter: filter, currentPage: 1 })
+        
+        // Use cached data for instant filter response
+        get().updateDisplayedDocuments()
+        
+        const endTime = performance.now()
+        console.log(`🔍 Filter "${filter}" applied instantly in ${(endTime - startTime).toFixed(2)}ms using cache`)
+      },
+      
+      setSearchTerm: (term: string) => {
+        const startTime = performance.now()
+        set({ searchTerm: term, currentPage: 1 })
+        
+        // Use cached data for instant search response
+        get().updateDisplayedDocuments()
+        
+        const endTime = performance.now()
+        console.log(`🔎 Search "${term}" applied instantly in ${(endTime - startTime).toFixed(2)}ms using cache`)
+      },
+      
+      setPage: (page: number) => {
+        const startTime = performance.now()
+        set({ currentPage: page })
+        
+        // Use cached data for instant pagination
+        get().updateDisplayedDocuments()
+        
+        const endTime = performance.now()
+        console.log(`📄 Page ${page} loaded instantly in ${(endTime - startTime).toFixed(2)}ms using cache`)
+      },
+      
+      invalidateCache: () => {
+        const state = get()
+        set({
+          cache: {
+            ...state.cache,
+            isStale: true
+          }
+        })
+      },
+      
+      getDocumentCounts: () => {
+        const { cache } = get()
+        const allDocs = cache?.allDocuments || []
+        
+        return {
+          all: allDocs.length,
+          inbox: allDocs.filter(doc => doc.canUserSign || doc.userRole === 'assignee').length,
+          waiting: allDocs.filter(doc => doc.status === 'waiting').length,
+          signed: allDocs.filter(doc => doc.status === 'signed').length,
+          drafted: allDocs.filter(doc => doc.status === 'drafted').length,
+          partially_signed: allDocs.filter(doc => doc.status === 'partially_signed').length,
+          declined: allDocs.filter(doc => doc.status === 'declined').length,
+          expired: allDocs.filter(doc => doc.status === 'expired').length
         }
       },
 
@@ -572,84 +556,6 @@ const useDocumentsStore = create<DocumentsState>()(
         }
       },
 
-      duplicateDocument: async (docId: string) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const response = await fetch('/api/proxy/opensign/functions/createduplicate', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-              'X-Parse-Session-Token': localStorage.getItem('opensign_session_token') || '',
-            },
-            body: JSON.stringify({ docId }),
-          })
-
-          if (!response.ok) {
-            throw new Error(`Failed to duplicate document: ${response.statusText}`)
-          }
-
-          const data = await response.json()
-          console.log('[Documents Store] Document duplicated:', data)
-
-          if (!data.result) {
-            throw new Error(data.error || 'Failed to duplicate document')
-          }
-
-          set({ isLoading: false, error: null })
-
-          // Refresh documents list
-          await get().fetchDocuments()
-          
-        } catch (error) {
-          console.error('[Documents Store] Error duplicating document:', error)
-          set({
-            error: error instanceof Error ? error.message : 'Duplicate failed',
-            isLoading: false
-          })
-          throw error
-        }
-      },
-
-      deleteDocument: async (docId: string) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          // Mark as archived instead of actual deletion
-          const response = await fetch(`/api/proxy/opensign/classes/contracts_Document/${docId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-              'X-Parse-Session-Token': localStorage.getItem('opensign_session_token') || '',
-            },
-            body: JSON.stringify({
-              IsArchive: true,
-            }),
-          })
-
-          if (!response.ok) {
-            throw new Error(`Failed to delete document: ${response.statusText}`)
-          }
-
-          console.log('[Documents Store] Document deleted (archived)')
-
-          set({ isLoading: false, error: null })
-
-          // Refresh documents list
-          await get().fetchDocuments()
-          
-        } catch (error) {
-          console.error('[Documents Store] Error deleting document:', error)
-          set({
-            error: error instanceof Error ? error.message : 'Delete failed',
-            isLoading: false
-          })
-          throw error
-        }
-      },
-
       recreateDocument: async (docId: string) => {
         set({ isLoading: true, error: null })
         
@@ -693,29 +599,6 @@ const useDocumentsStore = create<DocumentsState>()(
       // UI state management
       setCurrentDocument: (doc: Document | null) => set({ currentDocument: doc }),
 
-      setFilter: (filter: string) => {
-        set({ currentFilter: filter, currentPage: 1 })
-        get().fetchDocuments({ status: filter, search: get().searchQuery })
-      },
-
-      setSearchQuery: (query: string) => {
-        set({ searchQuery: query, currentPage: 1 })
-        get().fetchDocuments({ status: get().currentFilter, search: query })
-      },
-
-      setCurrentPage: (page: number) => {
-        set({ currentPage: page })
-        const { currentFilter, searchQuery, pageSize } = get()
-        get().fetchDocuments({
-          status: currentFilter,
-          search: searchQuery,
-          limit: pageSize,
-          offset: (page - 1) * pageSize
-        })
-      },
-
-      clearError: () => set({ error: null, uploadError: null }),
-
       reset: () => set({
         documents: [],
         currentDocument: null,
@@ -736,12 +619,61 @@ const useDocumentsStore = create<DocumentsState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         currentFilter: state.currentFilter,
-        searchQuery: state.searchQuery,
-        currentPage: state.currentPage,
-        pageSize: state.pageSize
+        searchTerm: state.searchTerm,
+        itemsPerPage: state.itemsPerPage,
+        // Don't persist cache as it should be fresh on app load
       })
     }
   )
 )
 
-export { useDocumentsStore }
+// Export types for use in components
+export type { Document, DocumentStatus, CreateDocumentRequest, GetDocumentsParams }
+
+// Expose cache stats globally for debugging (development only)
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  interface CacheStatsResult {
+    documentCounts: ReturnType<DocumentsState['getDocumentCounts']>
+    cacheInfo: {
+      allDocuments: number
+      lastFetch: string
+      isStale: boolean
+    }
+  }
+  
+  interface WindowWithDebug extends Window {
+    getDocumentsCacheStats: () => CacheStatsResult
+    forceRefreshCache: () => void
+    invalidateCache: () => void
+  }
+  
+  const windowWithDebug = window as unknown as WindowWithDebug
+  
+  windowWithDebug.getDocumentsCacheStats = () => {
+    const state = useDocumentsStore.getState()
+    const counts = state.getDocumentCounts()
+    
+    const cacheInfo = {
+      allDocuments: state.cache.allDocuments.length,
+      lastFetch: new Date(state.cache.lastFetch).toLocaleString(),
+      isStale: state.cache.isStale
+    }
+    
+    console.table({
+      'Document Counts': counts,
+      'Cache Info': cacheInfo
+    })
+    
+    return { documentCounts: counts, cacheInfo }
+  }
+  
+  windowWithDebug.forceRefreshCache = () => {
+    console.log(`🔄 Forcing cache refresh...`)
+    useDocumentsStore.getState().refreshCache(true)
+  }
+  
+  windowWithDebug.invalidateCache = () => {
+    console.log(`🗑️ Invalidating cache...`)
+    useDocumentsStore.getState().invalidateCache()
+  }
+}

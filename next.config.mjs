@@ -6,16 +6,9 @@ const withNextIntl = createNextIntlPlugin('./app/i18n/config.ts');
 const nextConfig = {
   experimental: {
     authInterrupts: true, // Enable experimental authInterrupts for forbidden/unauthorized [^1]
-    // Enable experimental features for better request handling
-    serverComponentsExternalPackages: [], // Keep this empty to allow bundling
   },
-  // Configure API route limits for large requests
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb', // Increase body size limit for PDF uploads
-    },
-    responseLimit: '50mb', // Increase response limit for large API responses
-  },
+  // Move serverComponentsExternalPackages to top level (renamed to serverExternalPackages in Next.js 15)
+  serverExternalPackages: [], // Keep this empty to allow bundling
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -38,22 +31,6 @@ const nextConfig = {
     config.resolve.alias['pdfjs-dist/build/pdf.worker.min.js'] = 'pdfjs-dist/build/pdf.worker.min.js'
     
     return config
-  },
-  async rewrites() {
-    return [
-      // Proxy OpenSign API functions to hide the real backend URL
-      {
-        source: '/api/proxy/opensign/:path*',
-        destination: `${process.env.NEXT_PUBLIC_OPENSIGN_API_URL}/api/app/:path*`,
-      },
-      // Proxy OpenSign custom routes (file upload, conversion, etc.)
-      {
-        source: '/api/proxy/:path*',
-        destination: `${process.env.NEXT_PUBLIC_OPENSIGN_API_URL}/:path*`,
-      },
-      // Keep internal API routes as they are (these stay on your domain)
-      // /api/cron/* and /api/usage-data/* will work normally
-    ];
   },
 };
 

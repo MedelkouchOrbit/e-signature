@@ -1,5 +1,6 @@
 import { openSignApiService } from "@/app/lib/api-service"
 import type { UserCredentials, UserRegistration, OpenSignLoginResponse } from "./auth-types"
+import type { EnhancedSignupResponse, ParseServerResponse } from "../../../global.d"
 
 export const authApiService = {
   login: async (credentials: UserCredentials) => {
@@ -20,10 +21,51 @@ export const authApiService = {
     return response;
   },
 
-  signup: async (registrationData: UserRegistration) => {
-    return openSignApiService.post("functions/usersignup", {
-      userDetails: registrationData
-    });
+  signup: async (registrationData: UserRegistration): Promise<EnhancedSignupResponse> => {
+    // Enhanced signup with tenant/organization creation and approval workflow
+    try {
+      // Step 1: Create user with pending status
+      const signupResponse = await openSignApiService.callFunction<ParseServerResponse<OpenSignLoginResponse>>("usersignup", {
+        userDetails: {
+          ...registrationData,
+          // Set user as pending approval initially
+          isActive: false,
+          activationStatus: 'pending_approval',
+          activatedBy: null,
+          activatedAt: null
+        }
+      }, { excludeSessionToken: true }); // Don't send session token for signup
+
+      if (signupResponse.error) {
+        throw new Error(signupResponse.error);
+      }
+
+      const newUser = signupResponse.result!;
+
+      // Step 2: Create organization for the user (if company provided)
+      if (registrationData.company) {
+        try {
+          await openSignApiService.callFunction("createOrganization", {
+            organizationName: registrationData.company,
+            ownerId: newUser.objectId,
+            isActive: false // Organization also pending until user approved
+          });
+        } catch (orgError) {
+          console.warn('Organization creation failed, but user created:', orgError);
+        }
+      }
+
+      return {
+        success: true,
+        message: 'Account created successfully. Please wait for administrator approval.',
+        user: newUser,
+        requiresApproval: true
+      };
+
+    } catch (error) {
+      console.error('Enhanced signup failed:', error);
+      throw error;
+    }
   },
 
   logout: async () => {
@@ -48,7 +90,7 @@ export const authApiService = {
   },
 
   loginWithOTP: async (email: string, otp: number) => {
-    const response = await openSignApiService.post<OpenSignLoginResponse>("functions/AuthLoginAsMail", {
+    const response = await openSignApiService.post<ParseServerResponse<OpenSignLoginResponse>>("functions/AuthLoginAsMail", {
       email,
       otp
     });

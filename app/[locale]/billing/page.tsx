@@ -9,6 +9,9 @@ import { useSubscriptionStore, type SubscriptionPlan } from "../../lib/subscript
 import { useTranslations } from "next-intl"
 import { useRouter } from "../../i18n/navigation"
 
+// Disable static generation for this page since it requires authentication
+export const dynamic = 'force-dynamic'
+
 interface PlanDetails {
   name: string
   price: number

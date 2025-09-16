@@ -33,12 +33,21 @@ export async function POST(request: NextRequest) {
     console.log('[Template API] Creating template in OpenSign Parse Server')
 
     // First, get current user info from session token
-    const userResponse = await fetch(`${request.nextUrl.origin}/api/proxy/opensign/users/me`, {
-      method: 'GET',
+    const userResponse = await fetch(`http://94.249.71.89:9000/api/app/users/me`, {
+      method: 'POST',
       headers: {
-        'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-        'X-Parse-Session-Token': sessionToken,
+        'Content-Type': 'text/plain',
+        'Origin': 'http://94.249.71.89:9000',
+        'Referer': 'http://94.249.71.89:9000/',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
       },
+      body: JSON.stringify({
+        _ApplicationId: process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
+        _ClientVersion: 'js6.1.1',
+        _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+        _SessionToken: sessionToken,
+        _method: 'GET'
+      })
     })
 
     let currentUserId = null
@@ -50,14 +59,20 @@ export async function POST(request: NextRequest) {
 
       // Get the corresponding contracts_Users record using getUserDetails function
       try {
-        const getUserDetailsResponse = await fetch(`${request.nextUrl.origin}/api/proxy/opensign/functions/getUserDetails`, {
+        const getUserDetailsResponse = await fetch(`http://94.249.71.89:9000/api/app/functions/getUserDetails`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-            'X-Parse-Session-Token': sessionToken,
+            'Content-Type': 'text/plain',
+            'Origin': 'http://94.249.71.89:9000',
+            'Referer': 'http://94.249.71.89:9000/',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
           },
-          body: JSON.stringify({})
+          body: JSON.stringify({
+            _ApplicationId: process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
+            _ClientVersion: 'js6.1.1',
+            _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+            _SessionToken: sessionToken
+          })
         })
 
         if (getUserDetailsResponse.ok) {
@@ -74,12 +89,22 @@ export async function POST(request: NextRequest) {
           console.warn('[Template API] getUserDetails failed, trying direct query...')
           
           // Fallback: Direct query to contracts_Users
-          const extUserResponse = await fetch(`${request.nextUrl.origin}/api/proxy/opensign/classes/contracts_Users?where=${encodeURIComponent(JSON.stringify({ UserId: { __type: "Pointer", className: "_User", objectId: currentUserId } }))}`, {
-            method: 'GET',
+          const extUserResponse = await fetch(`http://94.249.71.89:9000/api/app/classes/contracts_Users?where=${encodeURIComponent(JSON.stringify({ UserId: { __type: "Pointer", className: "_User", objectId: currentUserId } }))}`, {
+            method: 'POST',
             headers: {
-              'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-              'X-Parse-Session-Token': sessionToken,
+              'Content-Type': 'text/plain',
+              'Origin': 'http://94.249.71.89:9000',
+              'Referer': 'http://94.249.71.89:9000/',
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
             },
+            body: JSON.stringify({
+              _ApplicationId: process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
+              _ClientVersion: 'js6.1.1',
+              _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+              _SessionToken: sessionToken,
+              _method: 'GET',
+              where: { UserId: { __type: "Pointer", className: "_User", objectId: currentUserId } }
+            })
           })
 
           if (extUserResponse.ok) {
@@ -99,13 +124,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create template object using the proxy endpoint
-    const templateResponse = await fetch(`${request.nextUrl.origin}/api/proxy/opensign/classes/contracts_Template`, {
+    // Create template object using the direct endpoint
+    const templateResponse = await fetch(`http://94.249.71.89:9000/api/app/classes/contracts_Template`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-        'X-Parse-Session-Token': sessionToken,
+        'Content-Type': 'text/plain',
+        'Origin': 'http://94.249.71.89:9000',
+        'Referer': 'http://94.249.71.89:9000/',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
       },
       body: JSON.stringify({
         Name: name,
@@ -123,16 +149,18 @@ export async function POST(request: NextRequest) {
         RedirectURL: redirectUrl || '',
         Bcc: bcc || [],
         AllowModifications: allowModifications || false,
-        // FIXED: Correct field values for getReport compatibility
-        Type: 'template', // Lowercase to match other templates
-        IsArchive: false, // Explicitly set to false (not null)
+        Type: 'template',
+        IsArchive: false,
         CreatedBy: currentUserId ? {
           __type: "Pointer",
           className: "_User",
           objectId: currentUserId
         } : undefined,
-        // FIXED: Set ExtUserPtr for proper user association
-        ExtUserPtr: extUserPtr
+        ExtUserPtr: extUserPtr,
+        _ApplicationId: process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
+        _ClientVersion: 'js6.1.1',
+        _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+        _SessionToken: sessionToken
       }),
     })
 
@@ -158,12 +186,13 @@ export async function POST(request: NextRequest) {
         
         try {
           // Create or update signer record
-          const signerResponse = await fetch(`${request.nextUrl.origin}/api/proxy/opensign/classes/Signer`, {
+          const signerResponse = await fetch(`http://94.249.71.89:9000/api/app/classes/Signer`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-              'X-Parse-Session-Token': sessionToken,
+              'Content-Type': 'text/plain',
+              'Origin': 'http://94.249.71.89:9000',
+              'Referer': 'http://94.249.71.89:9000/',
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
             },
             body: JSON.stringify({
               Name: signer.name,
@@ -172,7 +201,11 @@ export async function POST(request: NextRequest) {
               Color: signer.color,
               Order: signer.order,
               TemplateId: templateData.objectId,
-              Status: 'pending'
+              Status: 'pending',
+              _ApplicationId: process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
+              _ClientVersion: 'js6.1.1',
+              _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+              _SessionToken: sessionToken
             }),
           })
 

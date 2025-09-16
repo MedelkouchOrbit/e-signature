@@ -75,19 +75,20 @@ export function DocumentUpload({
     try {
       setUploadError(null)
       
-      const fileUrl = await uploadDocument(file, {
+      const document = await uploadDocument({
         name: file.name,
-        description: `Document uploaded on ${new Date().toLocaleDateString()}`,
-        note: `Uploaded file: ${file.name}`
+        file: file,
+        signers: [],
+        message: `Document uploaded on ${new Date().toLocaleDateString()}`,
       })
-      setUploadedFileUrl(fileUrl)
+      setUploadedFileUrl(document.url || '')
       
       toast({
         title: t("upload_success"),
         description: `${file.name} has been uploaded successfully`,
       })
       
-      onUploadComplete?.(fileUrl)
+      onUploadComplete?.(document.url || '')
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Upload failed'
       setUploadError(errorMessage)

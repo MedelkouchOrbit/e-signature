@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertCircle, Loader2, Users, Building2, Search } from "lucide-react"
+import { AlertCircle, Loader2, Users, Building2, Search, UserPlus } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 
@@ -32,7 +32,12 @@ interface CreateTeamModalProps {
   organizationMembers: TeamMember[]
 }
 
-export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers }: CreateTeamModalProps) {
+export function CreateTeamModal({ 
+  isOpen, 
+  onClose, 
+  onSubmit, 
+  organizationMembers
+}: CreateTeamModalProps) {
   const [currentTab, setCurrentTab] = useState('team-info')
   const [formData, setFormData] = useState({
     name: ''
@@ -41,6 +46,47 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
   const [searchTerm, setSearchTerm] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // New member form state
+  const [newMemberData, setNewMemberData] = useState({
+    name: '',
+    email: '',
+    role: 'User',
+    company: ''
+  })
+
+  const handleAddNewMember = () => {
+    if (!newMemberData.name.trim() || !newMemberData.email.trim()) {
+      setError('Name and email are required')
+      return
+    }
+
+    // Create a new team member object
+    const newMember: TeamMember = {
+      objectId: `temp_${Date.now()}`, // Temporary ID
+      Name: newMemberData.name.trim(),
+      Email: newMemberData.email.trim(),
+      UserRole: newMemberData.role,
+      Company: newMemberData.company.trim() || undefined,
+      IsDisabled: false,
+      createdAt: new Date().toISOString()
+    }
+
+    // Add to selected members
+    setSelectedMembers(prev => [...prev, newMember])
+    
+    // Reset form
+    setNewMemberData({
+      name: '',
+      email: '',
+      role: 'User',
+      company: ''
+    })
+
+    // Switch back to add-members tab to see the added member
+    setCurrentTab('add-members')
+    setError(null)
+  }
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
@@ -127,7 +173,7 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
 
   const getMemberAvatar = (name: string) => {
     return (
-      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+      <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
         <span className="text-sm font-medium text-green-700">
           {name?.charAt(0)?.toUpperCase() || '?'}
         </span>
@@ -137,32 +183,33 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-green-600" />
-            Create New Team
-          </DialogTitle>
-          <DialogDescription>
-            Create a new team and add members from your organization.
-          </DialogDescription>
-        </DialogHeader>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New Team</DialogTitle>
+            <DialogDescription>
+              Create a new team and add members from your organization.
+            </DialogDescription>
+          </DialogHeader>
 
-        <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="team-info" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
+              <Building2 className="w-4 h-4" />
               Team Info
             </TabsTrigger>
             <TabsTrigger value="add-members" className="flex items-center gap-2" disabled={!formData.name.trim()}>
-              <Users className="h-4 w-4" />
+              <Users className="w-4 h-4" />
               Add Members ({selectedMembers.length})
+            </TabsTrigger>
+            <TabsTrigger value="create-member" className="flex items-center gap-2" disabled={!formData.name.trim()}>
+              <UserPlus className="w-4 h-4" />
+              Create Member
             </TabsTrigger>
           </TabsList>
 
           {error && (
             <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
+              <AlertCircle className="w-4 h-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
@@ -186,7 +233,7 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
             </div>
 
             <div className="pt-4 border-t">
-              <h4 className="font-medium mb-2">Next Step: Add Members</h4>
+              <h4 className="mb-2 font-medium">Next Step: Add Members</h4>
               <p className="text-sm text-muted-foreground">
                 After setting the team name, you can select members from your organization to add to this team.
               </p>
@@ -202,24 +249,36 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
                 </div>
               </div>
 
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search members by name, email, or company..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+              {/* Search and Add Member Button */}
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute w-4 h-4 transform -translate-y-1/2 left-3 top-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search members by name, email, or company..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => setCurrentTab('create-member')}
+                    className="text-white bg-green-600 hover:bg-green-700 shrink-0"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Add Member
+                  </Button>
+                </div>
               </div>
 
               {/* Selected Members Summary */}
               {selectedMembers.length > 0 && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <h5 className="font-medium text-green-800 mb-2">Selected Members ({selectedMembers.length})</h5>
+                <div className="p-3 border border-green-200 rounded-lg bg-green-50">
+                  <h5 className="mb-2 font-medium text-green-800">Selected Members ({selectedMembers.length})</h5>
                   <div className="flex flex-wrap gap-2">
                     {selectedMembers.map(member => (
-                      <Badge key={member.objectId} variant="secondary" className="bg-green-100 text-green-800">
+                      <Badge key={member.objectId} variant="secondary" className="text-green-800 bg-green-100">
                         {member.Name}
                       </Badge>
                     ))}
@@ -228,16 +287,16 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
               )}
 
               {/* Members List */}
-              <div className="max-h-64 overflow-y-auto border rounded-lg">
+              <div className="overflow-y-auto border rounded-lg max-h-64">
                 {filteredMembers.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Users className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <div className="py-8 text-center">
+                    <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">
                       {searchTerm ? 'No members found matching your search' : 'No members available'}
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2 p-4">
+                  <div className="p-4 space-y-2">
                     {filteredMembers.map((member) => {
                       const isSelected = selectedMembers.some(m => m.objectId === member.objectId)
                       
@@ -257,10 +316,10 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
                           />
                           {getMemberAvatar(member.Name)}
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm text-gray-900 truncate">{member.Name}</p>
-                            <p className="text-xs text-muted-foreground truncate">{member.Email}</p>
+                            <p className="text-sm font-medium text-gray-900 truncate">{member.Name}</p>
+                            <p className="text-xs truncate text-muted-foreground">{member.Email}</p>
                             {member.Company && (
-                              <p className="text-xs text-muted-foreground truncate">{member.Company}</p>
+                              <p className="text-xs truncate text-muted-foreground">{member.Company}</p>
                             )}
                           </div>
                           <div className="flex items-center space-x-2">
@@ -274,6 +333,72 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
                     })}
                   </div>
                 )}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="create-member" className="space-y-4">
+            <div className="space-y-4">
+              <h4 className="font-medium">Create New Team Member</h4>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-member-name">Full Name *</Label>
+                  <Input
+                    id="new-member-name"
+                    placeholder="Enter full name"
+                    value={newMemberData.name}
+                    onChange={(e) => setNewMemberData({ ...newMemberData, name: e.target.value })}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="new-member-email">Email *</Label>
+                  <Input
+                    id="new-member-email"
+                    type="email"
+                    placeholder="Enter email address"
+                    value={newMemberData.email}
+                    onChange={(e) => setNewMemberData({ ...newMemberData, email: e.target.value })}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-member-role">Role</Label>
+                  <select 
+                    id="new-member-role"
+                    className="flex w-full h-10 px-3 py-2 text-sm border rounded-md border-input bg-background ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={newMemberData.role}
+                    onChange={(e) => setNewMemberData({ ...newMemberData, role: e.target.value })}
+                  >
+                    <option value="User">User</option>
+                    <option value="Admin">Admin</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="new-member-company">Company (Optional)</Label>
+                  <Input
+                    id="new-member-company"
+                    placeholder="Enter company name"
+                    value={newMemberData.company}
+                    onChange={(e) => setNewMemberData({ ...newMemberData, company: e.target.value })}
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end pt-4 border-t">
+                <Button 
+                  type="button"
+                  className="text-white bg-green-600 hover:bg-green-700"
+                  onClick={handleAddNewMember}
+                  disabled={!newMemberData.name.trim() || !newMemberData.email.trim()}
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Add to Team
+                </Button>
               </div>
             </div>
           </TabsContent>
@@ -306,7 +431,7 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
               <Button
                 onClick={handleNext}
                 disabled={!formData.name.trim()}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="text-white bg-green-600 hover:bg-green-700"
               >
                 Next: Add Members
               </Button>
@@ -314,9 +439,9 @@ export function CreateTeamModal({ isOpen, onClose, onSubmit, organizationMembers
               <Button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !formData.name.trim()}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="text-white bg-green-600 hover:bg-green-700"
               >
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Create Team
               </Button>
             )}

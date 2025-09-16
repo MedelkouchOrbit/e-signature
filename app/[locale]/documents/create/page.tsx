@@ -91,13 +91,25 @@ export default function CreateDocumentPage() {
     // Create a mock document object for design step
     const mockDocument: Document = {
       objectId: 'temp-' + Date.now(),
-      Name: 'Uploaded Document',
-      URL: fileUrl,
+      name: 'Uploaded Document',
+      fileName: 'Uploaded Document',
+      url: fileUrl,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       status: 'drafted',
-      IsCompleted: false,
-      IsDeclined: false,
+      signers: [],
+      placeholders: [],
+      createdBy: {
+        id: 'temp-user',
+        name: 'Current User',
+        email: 'user@example.com'
+      },
+      senderName: 'Current User',
+      senderEmail: 'user@example.com',
+      receiverNames: [],
+      hasUserSigned: false,
+      canUserSign: false,
+      isCurrentUserCreator: true,
     }
     
     setCurrentDocument(mockDocument)

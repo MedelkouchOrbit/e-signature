@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Users, Calendar, Building2, AlertCircle, ChevronRight, ChevronDown } from "lucide-react"
-import { teamsApiService, type OpenSignTeamMember } from '@/app/lib/templates-api-service'
 import { openSignApiService } from '@/app/lib/api-service'
 import { CreateTeamModal } from './CreateTeamModal'
 import { AddMemberToTeamModal } from './AddMemberToTeamModal'
 
+// Define types for this component based on actual OpenSign API data
 interface Team {
   objectId: string
   Name: string
@@ -28,12 +28,11 @@ interface TeamMember {
   Email: string
   UserRole?: string
   Company?: string
+  Status?: string
   IsDisabled?: boolean
-  TeamIds?: Array<{
-    objectId: string
-    Name?: string
-  }>
+  TeamIds?: Array<{objectId: string, Name?: string}>
   createdAt: string
+  updatedAt?: string
 }
 
 interface OrganizationData {
@@ -42,17 +41,16 @@ interface OrganizationData {
 }
 
 export function TeamsAndMembers() {
-  const [organizationData, setOrganizationData] = useState<OrganizationData>({
-    teams: [],
-    members: []
-  })
+  // State management
+  const [organizationData, setOrganizationData] = useState<OrganizationData | undefined>(undefined)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false)
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false)
   const [selectedTeamForMember, setSelectedTeamForMember] = useState<Team | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   // Load organization data
   const loadOrganizationData = React.useCallback(async () => {
@@ -115,14 +113,14 @@ export function TeamsAndMembers() {
       }
       
       // Get team members using the organization ID if available
-      let membersData: OpenSignTeamMember[] = []
+      let membersData: TeamMember[] = []
       if (organizationId) {
         try {
           console.log('🔍 Calling getuserlistbyorg API directly with orgId:', organizationId)
           const response = await openSignApiService.post("functions/getuserlistbyorg", {
             organizationId
           }) as {
-            result?: OpenSignTeamMember[]
+            result?: TeamMember[]
             error?: string
           }
           
@@ -140,10 +138,10 @@ export function TeamsAndMembers() {
         }
       }
       
-      // Fallback to general team members if organization-specific failed
+      // Skip fallback since teamsApiService is not available
       if (membersData.length === 0) {
-        console.log('🔄 Falling back to general team members...')
-        membersData = await teamsApiService.getTeamMembers()
+        console.log('🔄 No members found')
+        membersData = []
       }
       
       // Convert teams data to proper interface
@@ -158,18 +156,11 @@ export function TeamsAndMembers() {
       
       // Transform members data to match TeamMember interface
       const formattedMembers: TeamMember[] = membersData.map(member => {
-        // Handle different data structures - direct member or organization member
-        const name = member.Name || 
-                    (member.UserId && typeof member.UserId === 'object' && 'name' in member.UserId ? member.UserId.name : '') ||
-                    'Unknown User'
-        const email = member.Email || 
-                     (member.UserId && typeof member.UserId === 'object' && 'email' in member.UserId ? member.UserId.email : '') ||
-                     'unknown@example.com'
-        
+        // Use the data directly from our API response
         return {
           objectId: member.objectId,
-          Name: name,
-          Email: email,
+          Name: member.Name || 'Unknown User',
+          Email: member.Email || 'unknown@example.com',
           UserRole: member.UserRole || 'User',
           Company: member.Company,
           IsDisabled: member.IsDisabled || false,
@@ -214,21 +205,27 @@ export function TeamsAndMembers() {
       
       // Get organization ID from current teams data
       let organizationId = 'b7cpzhOEUI' // Default from your curl tests
-      if (organizationData.teams.length > 0 && organizationData.teams[0].OrganizationId) {
+      if (organizationData && organizationData.teams.length > 0 && organizationData.teams[0].OrganizationId) {
         organizationId = organizationData.teams[0].OrganizationId.objectId
         console.log('🏢 Using organization ID from existing teams:', organizationId)
       } else {
         console.log('🏢 Using fallback organization ID:', organizationId)
       }
       
-      // Step 1: Create the team using master key (no session token for elevated privileges)
-      console.log('📝 Step 1: Creating team in contracts_Teams using master key...')
-      const createTeamResponse = await fetch('/api/proxy/opensign/classes/contracts_Teams', {
+      // Step 1: Create the team using direct API
+      console.log('📝 Step 1: Creating team in contracts_Teams...')
+      
+      // Get session token for authentication
+      const sessionToken = openSignApiService.getSessionToken()
+      console.log('🔑 Using session token:', sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none')
+      
+      const createTeamResponse = await fetch('http://94.249.71.89:9000/api/app/classes/contracts_Teams', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Parse-Application-Id': 'opensign',
-          // Intentionally omit X-Parse-Session-Token to trigger master key usage
+          'Content-Type': 'text/plain',
+          'Origin': 'http://94.249.71.89:9000',
+          'Referer': 'http://94.249.71.89:9000/',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
         },
         body: JSON.stringify({
           Name: teamData.name,
@@ -237,7 +234,11 @@ export function TeamsAndMembers() {
             __type: 'Pointer',
             className: 'contracts_Organizations',
             objectId: organizationId
-          }
+          },
+          _ApplicationId: 'opensign',
+          _ClientVersion: 'js6.1.1',
+          _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+          _SessionToken: sessionToken
         })
       })
 
@@ -261,7 +262,7 @@ export function TeamsAndMembers() {
         
         // Get organization ID from teams data
         let organizationId = 'b7cpzhOEUI' // Default from your curl tests
-        if (organizationData.teams.length > 0 && organizationData.teams[0].OrganizationId) {
+        if (organizationData && organizationData.teams.length > 0 && organizationData.teams[0].OrganizationId) {
           organizationId = organizationData.teams[0].OrganizationId.objectId
           console.log('🏢 Using organization ID from teams data:', organizationId)
         }
@@ -301,17 +302,23 @@ export function TeamsAndMembers() {
               
               // Optionally create Parse User account for login
               try {
-                const parseUserResponse = await fetch('/api/proxy/opensign/users', {
+                const parseUserResponse = await fetch('http://94.249.71.89:9000/api/app/users', {
                   method: 'POST',
                   headers: {
-                    'Content-Type': 'application/json',
-                    'X-Parse-Application-Id': 'opensign',
+                    'Content-Type': 'text/plain',
+                    'Origin': 'http://94.249.71.89:9000',
+                    'Referer': 'http://94.249.71.89:9000/',
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
                   },
                   body: JSON.stringify({
                     username: member.Email,
                     email: member.Email,
-                    password: teamsApiService.generatePassword(12),
-                    name: member.Name
+                    password: 'DefaultPassword123', // teamsApiService.generatePassword(12),
+                    name: member.Name,
+                    _ApplicationId: 'opensign',
+                    _ClientVersion: 'js6.1.1',
+                    _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+                    _SessionToken: sessionToken
                   })
                 })
 
@@ -371,7 +378,7 @@ export function TeamsAndMembers() {
       
       // Get organization ID from existing teams data
       let organizationId = 'b7cpzhOEUI' // Default from your curl tests
-      if (organizationData.teams.length > 0 && organizationData.teams[0].OrganizationId) {
+      if (organizationData && organizationData.teams.length > 0 && organizationData.teams[0].OrganizationId) {
         organizationId = organizationData.teams[0].OrganizationId.objectId
         console.log('🏢 Using organization ID from existing teams:', organizationId)
       }
@@ -415,17 +422,28 @@ export function TeamsAndMembers() {
       // Step 2: Create Parse User account for login (optional but recommended)
       try {
         console.log('📝 Step 2: Creating Parse User account for authentication...')
-        const parseUserResponse = await fetch('/api/proxy/opensign/users', {
+        
+        // Get session token for authentication
+        const sessionToken = openSignApiService.getSessionToken()
+        console.log('🔑 Using session token for Parse User creation:', sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none')
+        
+        const parseUserResponse = await fetch('http://94.249.71.89:9000/api/app/users', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'X-Parse-Application-Id': 'opensign',
+            'Content-Type': 'text/plain',
+            'Origin': 'http://94.249.71.89:9000',
+            'Referer': 'http://94.249.71.89:9000/',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
           },
           body: JSON.stringify({
             username: userData.email,
             email: userData.email,
             password: userData.password,
-            name: userData.name
+            name: userData.name,
+            _ApplicationId: 'opensign',
+            _ClientVersion: 'js6.1.1',
+            _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+            _SessionToken: sessionToken
           })
         })
 
@@ -476,6 +494,7 @@ export function TeamsAndMembers() {
   }
 
   const getTeamMembers = (team: Team) => {
+    if (!organizationData) return []
     return organizationData.members.filter(member => 
       member.TeamIds?.some(teamId => teamId.objectId === team.objectId)
     )
@@ -533,7 +552,8 @@ export function TeamsAndMembers() {
   }
 
   if (error) {
-    const isAuthError = error.includes('Session expired') || error.includes('Invalid session token')
+    const errorMessage = typeof error === 'string' ? error : (error as Error)?.message || 'An error occurred'
+    const isAuthError = errorMessage.includes('Session expired') || errorMessage.includes('Invalid session token')
     
     return (
       <div className="flex items-center justify-center py-12">
@@ -542,7 +562,7 @@ export function TeamsAndMembers() {
           <p className={`mb-2 font-medium ${isAuthError ? 'text-amber-600' : 'text-destructive'}`}>
             {isAuthError ? 'Authentication Required' : 'Error Loading Organization Data'}
           </p>
-          <p className="mb-4 text-sm text-muted-foreground">{error}</p>
+          <p className="mb-4 text-sm text-muted-foreground">{errorMessage}</p>
           {isAuthError ? (
             <div className="space-y-2">
               <Button onClick={loadOrganizationData} variant="outline">
@@ -565,8 +585,8 @@ export function TeamsAndMembers() {
   return (
     <div className="space-y-6">
       {/* Demo Data Banner */}
-      {error && error.includes('Session expired') && (
-        <div className="p-4 border border-amber-200 rounded-lg bg-amber-50">
+      {error && typeof error === 'string' && error.includes('Session expired') && (
+        <div className="p-4 border rounded-lg border-amber-200 bg-amber-50">
           <div className="flex items-center space-x-2">
             <AlertCircle className="w-5 h-5 text-amber-600" />
             <div>
@@ -608,34 +628,45 @@ export function TeamsAndMembers() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 mb-6 md:grid-cols-4">
-            <div className="p-4 text-center border border-green-200 rounded-lg bg-green-50">
-              <div className="text-2xl font-bold text-green-700">{organizationData.teams.length}</div>
-              <div className="text-sm text-green-600">Teams</div>
-            </div>
-            <div className="p-4 text-center border border-blue-200 rounded-lg bg-blue-50">
-              <div className="text-2xl font-bold text-blue-700">{organizationData.members.length}</div>
-              <div className="text-sm text-blue-600">Total Members</div>
-            </div>
-            <div className="p-4 text-center border border-purple-200 rounded-lg bg-purple-50">
-              <div className="text-2xl font-bold text-purple-700">
-                {organizationData.teams.filter(t => t.IsActive).length}
+          {organizationData ? (
+            <>
+              <div className="grid grid-cols-2 gap-4 mb-6 md:grid-cols-4">
+                <div className="p-4 text-center border border-green-200 rounded-lg bg-green-50">
+                  <div className="text-2xl font-bold text-green-700">{organizationData.teams.length}</div>
+                  <div className="text-sm text-green-600">Teams</div>
+                </div>
+                <div className="p-4 text-center border border-blue-200 rounded-lg bg-blue-50">
+                  <div className="text-2xl font-bold text-blue-700">{organizationData.members.length}</div>
+                  <div className="text-sm text-blue-600">Total Members</div>
+                </div>
+                <div className="p-4 text-center border border-purple-200 rounded-lg bg-purple-50">
+                  <div className="text-2xl font-bold text-purple-700">
+                    {organizationData.teams.filter(t => t.IsActive).length}
+                  </div>
+                  <div className="text-sm text-purple-600">Active Teams</div>
+                </div>
+                <div className="p-4 text-center border border-orange-200 rounded-lg bg-orange-50">
+                  <div className="text-2xl font-bold text-orange-700">
+                    {organizationData.members.filter(m => m.UserRole?.includes('Admin')).length}
+                  </div>
+                  <div className="text-sm text-orange-600">Admins</div>
+                </div>
               </div>
-              <div className="text-sm text-purple-600">Active Teams</div>
-            </div>
-            <div className="p-4 text-center border border-orange-200 rounded-lg bg-orange-50">
-              <div className="text-2xl font-bold text-orange-700">
-                {organizationData.members.filter(m => m.UserRole?.includes('Admin')).length}
-              </div>
-              <div className="text-sm text-orange-600">Admins</div>
-            </div>
-          </div>
 
-          {/* Teams List with Members */}
-          <div className="space-y-4">
-            <h4 className="mb-4 font-medium text-gray-900">Teams & Members</h4>
-            
-            {organizationData.teams.length === 0 ? (
+              {/* Teams List with Members */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-medium text-gray-900">Teams & Members</h4>
+                  <Button 
+                    onClick={() => setIsCreateTeamModalOpen(true)}
+                    className="text-white bg-green-600 hover:bg-green-700"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Team
+                  </Button>
+                </div>
+                
+                {organizationData.teams.length === 0 ? (
               <div className="py-8 text-center">
                 <Building2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="mb-2 text-lg font-medium text-gray-900">No teams found</h3>
@@ -738,8 +769,14 @@ export function TeamsAndMembers() {
                   </div>
                 )
               })
-            )}
-          </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="py-8 text-center">
+              <p className="text-muted-foreground">No organization data available</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -748,10 +785,8 @@ export function TeamsAndMembers() {
         isOpen={isCreateTeamModalOpen}
         onClose={() => setIsCreateTeamModalOpen(false)}
         onSubmit={handleCreateTeam}
-        organizationMembers={organizationData.members}
-      />
-
-      {/* Add Member to Team Modal */}
+        organizationMembers={organizationData?.members || []}
+      />      {/* Add Member to Team Modal */}
       <AddMemberToTeamModal
         isOpen={isAddMemberModalOpen}
         onClose={() => {

@@ -29,6 +29,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDocumentsStore, type Document } from "@/app/lib/documents-store"
+import { type DocumentSigner, type DocumentStatus } from "@/app/lib/documents-api-service"
 import { useToast } from "@/hooks/use-toast"
 
 interface ShareDialogState {
@@ -163,11 +164,11 @@ function ActionMenu({
 function ReceiverTooltip({ document }: { document: Document }) {
   const t = useTranslations("documents")
 
-  if (!document.Signers || document.Signers.length === 0) {
+  if (!document.signers || document.signers.length === 0) {
     return <span className="text-gray-500">-</span>
   }
 
-  const signers = document.Signers
+  const signers = document.signers
 
   return (
     <TooltipProvider>
@@ -175,7 +176,7 @@ function ReceiverTooltip({ document }: { document: Document }) {
         <TooltipTrigger asChild>
           <div className="flex items-center space-x-1 cursor-pointer">
             <span className="text-sm">
-              {signers.map(signer => signer.Name || signer.Email).join(", ")}
+              {signers.map((signer: DocumentSigner) => signer.name || signer.email).join(", ")}
             </span>
             <Users className="h-3 w-3 text-gray-400" />
           </div>
@@ -260,7 +261,7 @@ export function DocumentsTable({ onCreateDocument, className }: DocumentsTablePr
     setSearchQuery(value)
   }
 
-  const handleStatusFilter = (status: string) => {
+  const handleStatusFilter = (status: DocumentStatus | 'all' | 'inbox') => {
     setFilter(status)
   }
 
@@ -288,7 +289,7 @@ export function DocumentsTable({ onCreateDocument, className }: DocumentsTablePr
     }
 
     try {
-      const recipients = shareDialog.recipients.map(email => ({ email }))
+      const recipients = shareDialog.recipients // shareDialog.recipients should already be string[]
       await shareDocument(shareDialog.document.objectId, recipients)
       toast({
         title: "Document Shared",
@@ -329,8 +330,8 @@ export function DocumentsTable({ onCreateDocument, className }: DocumentsTablePr
   }
 
   const handleDownload = (document: Document) => {
-    if (document.SignedUrl || document.URL) {
-      window.open(document.SignedUrl || document.URL, '_blank')
+    if (document.signedUrl || document.url) {
+      window.open(document.signedUrl || document.url, '_blank')
     } else {
       toast({
         title: "Download Error",
@@ -345,7 +346,7 @@ export function DocumentsTable({ onCreateDocument, className }: DocumentsTablePr
       await duplicateDocument(document.objectId)
       toast({
         title: "Document Duplicated",
-        description: `${document.Name} has been duplicated`,
+        description: `${document.name} has been duplicated`,
       })
     } catch (error) {
       toast({
@@ -361,7 +362,7 @@ export function DocumentsTable({ onCreateDocument, className }: DocumentsTablePr
       await deleteDocument(document.objectId)
       toast({
         title: "Document Deleted",
-        description: `${document.Name} has been deleted`,
+        description: `${document.name} has been deleted`,
       })
     } catch (error) {
       toast({
@@ -511,13 +512,13 @@ export function DocumentsTable({ onCreateDocument, className }: DocumentsTablePr
                       )}
                     >
                       <td className="p-4">
-                        <div className="font-medium text-gray-900">{document.Name}</div>
-                        {document.Note && (
-                          <div className="text-sm text-gray-500">{document.Note}</div>
+                        <div className="font-medium text-gray-900">{document.name}</div>
+                        {document.note && (
+                          <div className="text-sm text-gray-500">{document.note}</div>
                         )}
                       </td>
                       <td className="p-4 text-sm text-gray-600">
-                        {document.ExtUserPtr?.Name || document.CreatedBy?.objectId || '-'}
+                        {document.createdBy?.name || document.createdBy?.id || '-'}
                       </td>
                       <td className="p-4">
                         <ReceiverTooltip document={document} />
@@ -580,7 +581,7 @@ export function DocumentsTable({ onCreateDocument, className }: DocumentsTablePr
       }>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("share")} {shareDialog.document?.Name}</DialogTitle>
+            <DialogTitle>{t("share")} {shareDialog.document?.name}</DialogTitle>
             <DialogDescription>
               {t("shareTo")}
             </DialogDescription>

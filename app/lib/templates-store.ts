@@ -290,16 +290,21 @@ export const useTemplatesStore = create<TemplatesState>()(
           const base64Data = Buffer.from(fileBuffer).toString('base64')
           
           // Use the base64fileupload function (same as documents)
-          const uploadResponse = await fetch('/api/proxy/opensign/functions/base64fileupload', {
+          const uploadResponse = await fetch('http://94.249.71.89:9000/api/app/functions/base64fileupload', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'X-Parse-Application-Id': process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
-              'X-Parse-Session-Token': localStorage.getItem('opensign_session_token') || '',
+              'Content-Type': 'text/plain',
+              'Origin': 'http://94.249.71.89:9000',
+              'Referer': 'http://94.249.71.89:9000/',
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
             },
             body: JSON.stringify({
               fileName: sanitizedFileName,
-              fileData: base64Data
+              fileData: base64Data,
+              _ApplicationId: process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
+              _ClientVersion: 'js6.1.1',
+              _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+              _SessionToken: localStorage.getItem('opensign_session_token') || ''
             }),
           })
 

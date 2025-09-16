@@ -7,6 +7,7 @@ export interface UserRegistration extends UserCredentials {
   name: string
   role: string
   timezone: string
+  company?: string
 }
 
 export interface AuthResponse {

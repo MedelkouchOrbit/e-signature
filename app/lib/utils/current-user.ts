@@ -62,13 +62,21 @@ export async function getCurrentUserFromApi(): Promise<CurrentUser> {
       return {}
     }
 
-    const response = await fetch('/api/proxy/opensign/users/me', {
-      method: 'GET',
+    const response = await fetch('http://94.249.71.89:9000/api/app/users/me', {
+      method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-Parse-Application-Id': 'opensign',
-        'X-Parse-Session-Token': sessionToken,
+        'Content-Type': 'text/plain',
+        'Origin': 'http://94.249.71.89:9000',
+        'Referer': 'http://94.249.71.89:9000/',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
       },
+      body: JSON.stringify({
+        _ApplicationId: 'opensign',
+        _ClientVersion: 'js6.1.1',
+        _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+        _SessionToken: sessionToken,
+        _method: 'GET'
+      })
     })
 
     if (!response.ok) {

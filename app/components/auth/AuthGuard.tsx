@@ -4,11 +4,10 @@ import type React from "react"
 
 import { useEffect, useState, useCallback } from "react"
 import { useAuthStore } from "@/app/lib/auth/auth-store"
-import { useRouter, usePathname } from "@/app/i18n/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { Skeleton } from "@/components/ui/skeleton"
 import { openSignApiService } from "@/app/lib/api-service"
-import { authApiService } from "@/app/lib/auth/auth-api-service"
 
 interface AuthGuardProps {
   children: React.ReactNode
@@ -34,8 +33,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
     "/privacy"
   ]
 
-  // Check if the current path is a public path
-  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path))
+  // Check if the current path is a public path (only on client side)
+  const isPublicPath = isClient ? publicPaths.some((path) => pathname.startsWith(path)) : false
 
   // Set client flag after hydration
   useEffect(() => {
@@ -53,8 +52,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
     }
 
     try {
-      // Try to verify session with OpenSign API
-      await authApiService.verifySession()
+      // Try to verify session with OpenSign API using getUserDetails
+      await openSignApiService.callFunction('getUserDetails', {})
       return true
     } catch (error) {
       console.log("AuthGuard: Session validation failed, token may be expired:", error)
@@ -70,9 +69,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
     logout()
     if (typeof window !== 'undefined') {
       openSignApiService.clearSessionToken()
+      // Use locale-aware routing - default to 'en' if no locale detected
+      const currentLocale = pathname.split('/')[1] || 'en'
+      router?.push(`/${currentLocale}/auth/login`)
     }
-    router.push("/auth/login")
-  }, [logout, router])
+  }, [logout, router, pathname])
 
   // Check token immediately on render for protected routes - CLIENT SIDE ONLY
   const sessionToken = (!isPublicPath && isClient && typeof window !== 'undefined') 
@@ -122,7 +123,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
       return (
         <div className="flex flex-col min-h-[100dvh] items-center justify-center p-4">
           <div className="text-center">
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Authentication Required</h2>
+            <h2 className="mb-2 text-xl font-semibold text-gray-800">Authentication Required</h2>
             <p className="text-gray-600">Redirecting to login...</p>
           </div>
         </div>
@@ -134,13 +135,13 @@ export function AuthGuard({ children }: AuthGuardProps) {
   if (!isPublicPath && (!isClient || isValidating || (!isAuthenticated && hasValidToken))) {
     return (
       <div className="flex flex-col min-h-[100dvh] items-center justify-center p-4">
-        <Skeleton className="h-14 w-full max-w-screen-xl mb-8" /> {/* Nav skeleton */}
-        <div className="flex-1 w-full max-w-screen-xl grid grid-cols-1 md:grid-cols-2 gap-8">
-          <Skeleton className="h-64 w-full" /> {/* Content skeleton */}
-          <Skeleton className="h-64 w-full" /> {/* Content skeleton */}
+        <Skeleton className="w-full max-w-screen-xl mb-8 h-14" /> {/* Nav skeleton */}
+        <div className="grid flex-1 w-full max-w-screen-xl grid-cols-1 gap-8 md:grid-cols-2">
+          <Skeleton className="w-full h-64" /> {/* Content skeleton */}
+          <Skeleton className="w-full h-64" /> {/* Content skeleton */}
         </div>
-        <Skeleton className="h-10 w-full max-w-screen-xl mt-8" /> {/* Footer skeleton */}
-        <p className="mt-4 text-gray-500 dark:text-gray-400">{isClient ? "Access Denied" : t("loadingMessage")}</p>
+        <Skeleton className="w-full h-10 max-w-screen-xl mt-8" /> {/* Footer skeleton */}
+        <p className="mt-4 text-gray-500 dark:text-gray-400">{isClient ? "Access Denied" : t("loading")}</p>
       </div>
     )
   }
@@ -149,13 +150,13 @@ export function AuthGuard({ children }: AuthGuardProps) {
   if (isValidating || (!isAuthenticated && !isPublicPath)) {
     return (
       <div className="flex flex-col min-h-[100dvh] items-center justify-center p-4">
-        <Skeleton className="h-14 w-full max-w-screen-xl mb-8" /> {/* Nav skeleton */}
-        <div className="flex-1 w-full max-w-screen-xl grid grid-cols-1 md:grid-cols-2 gap-8">
-          <Skeleton className="h-64 w-full" /> {/* Content skeleton */}
-          <Skeleton className="h-64 w-full" /> {/* Content skeleton */}
+        <Skeleton className="w-full max-w-screen-xl mb-8 h-14" /> {/* Nav skeleton */}
+        <div className="grid flex-1 w-full max-w-screen-xl grid-cols-1 gap-8 md:grid-cols-2">
+          <Skeleton className="w-full h-64" /> {/* Content skeleton */}
+          <Skeleton className="w-full h-64" /> {/* Content skeleton */}
         </div>
-        <Skeleton className="h-10 w-full max-w-screen-xl mt-8" /> {/* Footer skeleton */}
-        <p className="mt-4 text-gray-500 dark:text-gray-400">{t("loadingMessage")}</p>
+        <Skeleton className="w-full h-10 max-w-screen-xl mt-8" /> {/* Footer skeleton */}
+        <p className="mt-4 text-gray-500 dark:text-gray-400">{t("loading")}</p>
       </div>
     )
   }

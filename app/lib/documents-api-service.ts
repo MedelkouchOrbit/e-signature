@@ -8,7 +8,7 @@ export interface GetDocumentsParams {
   limit?: number
   skip?: number
   searchTerm?: string
-  status?: DocumentStatus | 'all'
+  status?: DocumentStatus | 'all' | 'inbox'
   assignedToMe?: boolean
   page?: number
 }
@@ -177,7 +177,7 @@ export interface GetDocumentsParams {
   limit?: number
   skip?: number
   searchTerm?: string
-  status?: DocumentStatus | 'all'
+  status?: DocumentStatus | 'all' | 'inbox'
   assignedToMe?: boolean
   page?: number
 }
@@ -284,7 +284,7 @@ class DocumentsApiService {
         };
 
         // Add status filtering - backend now supports this
-        if (status && status !== 'all') {
+        if (status && status !== 'all' && status !== 'inbox') {
           const statusMapping: Record<DocumentStatus, string> = {
             'drafted': 'draft',
             'waiting': 'waiting', 
@@ -347,7 +347,7 @@ class DocumentsApiService {
           });
 
           // Add status filter if specified
-          if (status && status !== 'all') {
+          if (status && status !== 'all' && status !== 'inbox') {
             const statusMapping: Record<DocumentStatus, string> = {
               'drafted': 'draft',
               'waiting': 'waiting',
@@ -451,72 +451,170 @@ class DocumentsApiService {
     }
   }
 
-    /**
-   * Get documents using direct Parse queries to show both created and assigned documents
-   * Uses $or condition to include documents where user is creator OR signer
+  /**
+   * Get documents using OpenSign getReport function
+   * Uses the correct report ID based on status filter
    */
   async getDocuments(params: GetDocumentsParams = {}): Promise<DocumentListResponse> {
     try {
       const { status, limit = 10, skip = 0, searchTerm = '' } = params;
 
-      console.log('📄 Fetching documents with enhanced getReport API:', { status, limit, skip, searchTerm });
+      console.log('📄 Fetching documents using getReport function:', { status, limit, skip, searchTerm });
 
-      // Use the enhanced getReport function with status filtering
-      const reportParams: Record<string, unknown> = {
-        reportId: 'ByHuevtCFY', // Documents report ID
-        limit,
-        skip
-      };
+      let allDocuments: Document[] = [];
 
-      // Add search term if provided
-      if (searchTerm) {
-        reportParams.searchTerm = searchTerm;
-      }
+      if (status === 'all') {
+        // For "All" filter, fetch from ALL status reports and combine them
+        console.log('📊 Fetching documents from ALL status reports...');
+        
+        const allReportIds = [
+          { id: '1MwEuxLEkF', status: 'waiting' },
+          { id: 'ByHuevtCFY', status: 'drafted' },
+          { id: 'kQUoW4hUXz', status: 'signed' },
+          { id: 'UPr2Fm5WY3', status: 'declined' },
+          { id: 'zNqBHXHsYH', status: 'expired' },
+          { id: '4Hhwbp482K', status: 'partially_signed' }
+        ];
 
-      // Add status filtering based on backend enhancements
-      if (status && status !== 'all') {
-        // Map our status values to OpenSign status values
-        const statusMapping: Record<DocumentStatus, string> = {
-          'drafted': 'draft',
-          'waiting': 'waiting',
-          'signed': 'signed',
-          'partially_signed': 'partially_signed', // ✅ Enhanced: Support new backend status
-          'declined': 'declined',
-          'expired': 'expired'
+        // Fetch documents from all reports in parallel
+        const reportPromises = allReportIds.map(async (report) => {
+          try {
+            console.log(`📊 Fetching from ${report.status} report (${report.id})...`);
+            
+            const response = await openSignApiService.callFunction<{
+              result?: Record<string, unknown>[]
+              error?: string
+            }>('getReport', {
+              reportId: report.id,
+              skip: 0, // Get all from each report, we'll handle pagination later
+              limit: 100 // Use a larger limit to get more documents from each report
+            });
+
+            if (response.error) {
+              console.warn(`⚠️ Error fetching ${report.status} documents:`, response.error);
+              return [];
+            }
+
+            // Transform documents
+            const documents = (response.result || []).map(result => {
+              try {
+                return transformOpenSignDocumentFromReport(result);
+              } catch (transformError) {
+                console.warn('⚠️ Failed to transform document:', result, transformError);
+                return null;
+              }
+            }).filter((doc): doc is Document => doc !== null);
+
+            console.log(`✅ Found ${documents.length} documents in ${report.status} report`);
+            return documents;
+          } catch (error) {
+            console.warn(`⚠️ Failed to fetch ${report.status} documents:`, error);
+            return [];
+          }
+        });
+
+        // Wait for all requests to complete
+        const reportResults = await Promise.all(reportPromises);
+        
+        // Combine all documents from all reports
+        allDocuments = reportResults.flat();
+        
+        // Remove duplicates based on objectId (in case a document appears in multiple reports)
+        const uniqueDocuments = new Map<string, Document>();
+        allDocuments.forEach(doc => {
+          uniqueDocuments.set(doc.objectId, doc);
+        });
+        allDocuments = Array.from(uniqueDocuments.values());
+
+        // Sort by creation date (newest first)
+        allDocuments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        console.log(`📊 Combined ${allDocuments.length} unique documents from all reports`);
+
+      } else {
+        // Handle specific status filters (existing logic)
+        let reportId: string;
+        
+        if (status === 'inbox') {
+          // For "Inbox" filter, we want documents waiting for current user's signature
+          // We'll fetch from waiting documents and filter by user permission
+          reportId = '1MwEuxLEkF'; // waiting documents
+        } else if (status) {
+          // For specific status filters, use the corresponding report ID
+          const statusToReportId: Record<DocumentStatus, string> = {
+            'waiting': '1MwEuxLEkF',
+            'drafted': 'ByHuevtCFY', 
+            'signed': 'kQUoW4hUXz',
+            'declined': 'UPr2Fm5WY3',
+            'expired': 'zNqBHXHsYH',
+            'partially_signed': '4Hhwbp482K'
+          };
+          reportId = statusToReportId[status];
+        } else {
+          // Default case (no status specified)
+          reportId = 'ByHuevtCFY'; // drafted documents
+        }
+
+        // Fetch from single report
+        const reportParams = {
+          reportId: reportId,
+          skip,
+          limit
         };
 
-        reportParams.status = statusMapping[status] || status;
-      }
+        console.log('📊 getReport parameters:', reportParams);
 
-      console.log('📊 getReport parameters:', reportParams);
+        const response = await openSignApiService.callFunction<{
+          result?: Record<string, unknown>[]
+          error?: string
+        }>('getReport', reportParams);
 
-      const response = await openSignApiService.post<{
-        result?: Record<string, unknown>[]
-        error?: string
-      }>("functions/getReport", reportParams);
-
-      if (response.error) {
-        console.error('❌ getReport API error:', response.error);
-        throw new Error(`OpenSign API Error: ${response.error}`);
-      }
-
-      console.log('📄 getReport response received, processing documents...');
-
-      // Transform OpenSign document format to our internal format
-      const documents = (response.result || []).map(result => {
-        try {
-          return transformOpenSignDocumentFromReport(result);
-        } catch (transformError) {
-          console.warn('⚠️ Failed to transform document:', result, transformError);
-          return null;
+        if (response.error) {
+          console.error('❌ getReport function error:', response.error);
+          throw new Error(`OpenSign getReport Error: ${response.error}`);
         }
-      }).filter((doc): doc is Document => doc !== null);
 
-      console.log(`✅ Successfully processed ${documents.length} documents`);
+        console.log('📄 getReport response received, processing documents...');
+
+        // Transform OpenSign document format to our internal format
+        allDocuments = (response.result || []).map(result => {
+          try {
+            return transformOpenSignDocumentFromReport(result);
+          } catch (transformError) {
+            console.warn('⚠️ Failed to transform document:', result, transformError);
+            return null;
+          }
+        }).filter((doc): doc is Document => doc !== null);
+      }
+
+      // Apply inbox filter if specified (filter by documents assigned to current user)
+      if (status === 'inbox') {
+        allDocuments = allDocuments.filter(doc => doc.canUserSign);
+        console.log(`📥 Filtered to ${allDocuments.length} inbox documents (can user sign)`);
+      }
+
+      // Apply search filter if specified (client-side filtering)
+      let filteredDocuments = allDocuments;
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        filteredDocuments = allDocuments.filter(doc => 
+          doc.name.toLowerCase().includes(searchLower) ||
+          doc.description?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      // Apply pagination for "all" filter (since we fetched everything)
+      if (status === 'all') {
+        const startIndex = skip;
+        const endIndex = skip + limit;
+        filteredDocuments = filteredDocuments.slice(startIndex, endIndex);
+      }
+
+      console.log(`✅ Successfully processed ${filteredDocuments.length} documents from ${status || 'default'} report(s)`);
 
       return {
-        results: documents,
-        count: documents.length // Note: getReport may not return total count, using array length
+        results: filteredDocuments,
+        count: status === 'all' ? allDocuments.length : filteredDocuments.length // Total count before pagination
       };
     } catch (error) {
       console.error('[Documents API] Error fetching documents with getReport:', error);

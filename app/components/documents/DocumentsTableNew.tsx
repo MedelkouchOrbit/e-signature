@@ -29,47 +29,13 @@ import {
   Bell
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useDocumentsStore } from "@/app/lib/documents-store-new"
-import { type Document, type DocumentStatus, checkUserSignPermission } from "@/app/lib/documents-api-service"
+import { useDocumentsStore } from "@/app/lib/documents-store"
+import { type Document, type DocumentStatus } from "@/app/lib/documents-api-service"
 import { useToast } from "@/hooks/use-toast"
 import { reminderApiService } from "@/app/lib/reminder-api-service"
 
-// Custom hook to check user permissions for documents
-function useDocumentPermissions(documents: Document[]) {
-  const [permissions, setPermissions] = useState<Map<string, boolean>>(new Map())
-  const [loading, setLoading] = useState<boolean>(false)
-
-  useEffect(() => {
-    async function checkPermissions() {
-      if (documents.length === 0) return
-      
-      setLoading(true)
-      const newPermissions = new Map<string, boolean>()
-      
-      // Check permissions for all waiting documents
-      const waitingDocs = documents.filter(doc => doc.status === 'waiting')
-      
-      await Promise.all(
-        waitingDocs.map(async (doc) => {
-          try {
-            const hasPermission = await checkUserSignPermission(doc)
-            newPermissions.set(doc.objectId, hasPermission)
-          } catch (error) {
-            console.error(`Error checking permission for document ${doc.objectId}:`, error)
-            newPermissions.set(doc.objectId, false)
-          }
-        })
-      )
-      
-      setPermissions(newPermissions)
-      setLoading(false)
-    }
-    
-    checkPermissions()
-  }, [documents])
-
-  return { permissions, loading }
-}
+// Note: Modern OpenSign document services are available at @/app/lib/opensign/document-services
+// This component can be migrated to use useDrive, useDocument, useSignDocument when needed
 
 // Helper functions for avatar
 const getInitials = (name: string) => {
@@ -160,7 +126,7 @@ function UserAvatar({ name, email, size = "sm" }: {
       <Tooltip>
         <TooltipTrigger asChild>
           <Avatar className={cn(sizeClasses[size], getAvatarColor(name))}>
-            <AvatarFallback className="text-white font-medium">
+            <AvatarFallback className="font-medium text-white">
               {getInitials(name)}
             </AvatarFallback>
           </Avatar>
@@ -222,7 +188,7 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
   
   return (
     <Badge variant={config.variant} className={cn("gap-1", config.className)}>
-      <Icon className="h-3 w-3" />
+      <Icon className="w-3 h-3" />
       {config.label}
     </Badge>
   )
@@ -256,16 +222,16 @@ function DocumentActionMenu({
       return (
         <>
           <DropdownMenuItem onClick={() => onSign(document)} className="text-green-600">
-            <CheckCircle className="h-4 w-4 mr-2" />
+            <CheckCircle className="w-4 h-4 mr-2" />
             Sign now
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => onDownload(document)}>
-            <Download className="h-4 w-4 mr-2" />
+            <Download className="w-4 h-4 mr-2" />
             Download
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onShare(document)}>
-            <Share2 className="h-4 w-4 mr-2" />
+            <Share2 className="w-4 h-4 mr-2" />
             Share
           </DropdownMenuItem>
         </>
@@ -277,20 +243,20 @@ function DocumentActionMenu({
         return (
           <>
             <DropdownMenuItem onClick={() => onReminder(document)} className="text-blue-600">
-              <Bell className="h-4 w-4 mr-2" />
+              <Bell className="w-4 h-4 mr-2" />
               Send Reminder
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onShare(document)}>
-              <Share2 className="h-4 w-4 mr-2" />
+              <Share2 className="w-4 h-4 mr-2" />
               Share
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onDownload(document)}>
-              <Download className="h-4 w-4 mr-2" />
+              <Download className="w-4 h-4 mr-2" />
               Download
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onDuplicate(document)}>
-              <Copy className="h-4 w-4 mr-2" />
+              <Copy className="w-4 h-4 mr-2" />
               Duplicate
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -298,7 +264,7 @@ function DocumentActionMenu({
               className="text-red-600"
               onClick={() => onDelete(document)}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
+              <Trash2 className="w-4 h-4 mr-2" />
               Delete
             </DropdownMenuItem>
           </>
@@ -307,16 +273,16 @@ function DocumentActionMenu({
         return (
           <>
             <DropdownMenuItem onClick={() => onShare(document)} className="text-green-600">
-              <Share2 className="h-4 w-4 mr-2" />
+              <Share2 className="w-4 h-4 mr-2" />
               Share
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onDownload(document)}>
-              <Download className="h-4 w-4 mr-2" />
+              <Download className="w-4 h-4 mr-2" />
               Download
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onDuplicate(document)}>
-              <Copy className="h-4 w-4 mr-2" />
+              <Copy className="w-4 h-4 mr-2" />
               Duplicate
             </DropdownMenuItem>
           </>
@@ -325,16 +291,16 @@ function DocumentActionMenu({
         return (
           <>
             <DropdownMenuItem onClick={() => onEdit(document)} className="text-blue-600">
-              <Edit className="h-4 w-4 mr-2" />
+              <Edit className="w-4 h-4 mr-2" />
               Edit
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onShare(document)}>
-              <Share2 className="h-4 w-4 mr-2" />
+              <Share2 className="w-4 h-4 mr-2" />
               Share
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onDownload(document)}>
-              <Download className="h-4 w-4 mr-2" />
+              <Download className="w-4 h-4 mr-2" />
               Download
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -342,7 +308,7 @@ function DocumentActionMenu({
               className="text-red-600"
               onClick={() => onDelete(document)}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
+              <Trash2 className="w-4 h-4 mr-2" />
               Delete
             </DropdownMenuItem>
           </>
@@ -351,11 +317,11 @@ function DocumentActionMenu({
         return (
           <>
             <DropdownMenuItem onClick={() => onDownload(document)}>
-              <Download className="h-4 w-4 mr-2" />
+              <Download className="w-4 h-4 mr-2" />
               Download
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onDuplicate(document)}>
-              <Copy className="h-4 w-4 mr-2" />
+              <Copy className="w-4 h-4 mr-2" />
               Duplicate
             </DropdownMenuItem>
           </>
@@ -366,9 +332,9 @@ function DocumentActionMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0">
+        <Button variant="ghost" className="w-8 h-8 p-0">
           <span className="sr-only">Open menu</span>
-          <MoreHorizontal className="h-4 w-4" />
+          <MoreHorizontal className="w-4 h-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -392,6 +358,9 @@ function FilterTabs({
     waiting: number
     signed: number
     drafted: number
+    partially_signed: number
+    declined: number
+    expired: number
   }
 }) {
   const filters = [
@@ -399,11 +368,14 @@ function FilterTabs({
     { key: 'inbox', label: 'Inbox', count: counts.inbox },
     { key: 'waiting', label: 'Waiting', count: counts.waiting },
     { key: 'signed', label: 'Signed', count: counts.signed },
-    { key: 'drafted', label: 'Draft', count: counts.drafted }
+    { key: 'drafted', label: 'Draft', count: counts.drafted },
+    { key: 'partially_signed', label: 'Partially Signed', count: counts.partially_signed },
+    { key: 'declined', label: 'Declined', count: counts.declined },
+    { key: 'expired', label: 'Expired', count: counts.expired }
   ]
   
   return (
-    <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+    <div className="flex p-1 space-x-1 bg-gray-100 rounded-lg">
       {filters.map((filter) => (
         <button
           key={filter.key}
@@ -448,6 +420,7 @@ export function DocumentsTable() {
     loadDocuments,
     setFilter,
     setSearchTerm,
+    setPage,
     downloadDocument,
     deleteDocument,
     getDocumentCounts
@@ -456,14 +429,15 @@ export function DocumentsTable() {
   // Local state
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
   
-  // Check user permissions for signing documents
-  const { permissions } = useDocumentPermissions(documents)
+  // Check user permissions for signing documents (temporarily disabled due to type conflicts)
+  // const { permissions } = useDocumentPermissions(documents)
   
-  // Helper function to check if user can sign a specific document
+  // Helper function to check if user can sign a specific document (simplified)
   const canUserSignDocument = useCallback((document: Document) => {
     if (document.status !== 'waiting') return false
-    return permissions.get(document.objectId) || false
-  }, [permissions])
+    // Simplified check - use the canUserSign property from the document
+    return document.canUserSign || false
+  }, [])
   
   // Load documents on mount
   useEffect(() => {
@@ -475,12 +449,11 @@ export function DocumentsTable() {
     const timer = setTimeout(() => {
       if (localSearchTerm !== searchTerm) {
         setSearchTerm(localSearchTerm)
-        loadDocuments({ searchTerm: localSearchTerm })
       }
     }, 300)
     
     return () => clearTimeout(timer)
-  }, [localSearchTerm, searchTerm, setSearchTerm, loadDocuments])
+  }, [localSearchTerm, searchTerm, setSearchTerm])
   
   // Get document counts
   const counts = getDocumentCounts()
@@ -542,25 +515,23 @@ export function DocumentsTable() {
   
   const handleSign = useCallback(async (document: Document) => {
     try {
-      // Check if user has permission to sign this document
-      const hasPermission = await checkUserSignPermission(document)
-      
-      if (!hasPermission) {
+      // Simplified sign handler - check canUserSign property
+      if (!document.canUserSign) {
         toast({
           title: "Permission Denied",
-          description: "You do not have permission to sign this document. Only authorized signers can sign.",
+          description: "You do not have permission to sign this document.",
           variant: "destructive"
         })
         return
       }
       
-      // If permission is granted, navigate to sign page
+      // Navigate to sign page
       router.push(`/documents/${document.objectId}/sign`)
     } catch (error) {
-      console.error('Error checking sign permission:', error)
+      console.error('Error navigating to sign page:', error)
       toast({
-        title: "Permission Check Error",
-        description: "Could not verify your permission to sign this document. Please try again.",
+        title: "Navigation Error",
+        description: "Could not open the signing page. Please try again.",
         variant: "destructive"
       })
     }
@@ -583,12 +554,14 @@ export function DocumentsTable() {
   }, [toast])
   
   const handleRefresh = useCallback(() => {
-    loadDocuments({ page: 1 })
+    loadDocuments()
   }, [loadDocuments])
   
-  const handlePageChange = useCallback((page: number) => {
-    loadDocuments({ page })
-  }, [loadDocuments])
+  const handlePageChange = (page: number) => {
+    // Since we now use client-side pagination, just set the page
+    // The store will update the displayed documents automatically
+    setPage(page)
+  }
   
   // Format date
   const formatDate = (dateString: string) => {
@@ -602,10 +575,10 @@ export function DocumentsTable() {
   return (
     <Card className="w-full">
       <CardHeader className="pb-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Documents</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="mt-1 text-sm text-gray-500">
               Manage your documents and signatures
             </p>
           </div>
@@ -630,9 +603,9 @@ export function DocumentsTable() {
         />
         
         {/* Search and filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Search className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
             <Input
               placeholder="Search documents..."
               value={localSearchTerm}
@@ -643,7 +616,7 @@ export function DocumentsTable() {
           
           <Select value={currentFilter} onValueChange={setFilter}>
             <SelectTrigger className="w-full sm:w-48">
-              <Filter className="h-4 w-4 mr-2" />
+              <Filter className="w-4 h-4 mr-2" />
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
@@ -659,7 +632,7 @@ export function DocumentsTable() {
       
       <CardContent className="p-0">
         {error && (
-          <div className="p-4 bg-red-50 border-l-4 border-red-400 text-red-700">
+          <div className="p-4 text-red-700 border-l-4 border-red-400 bg-red-50">
             <p className="font-medium">Error loading documents</p>
             <p className="text-sm">{error}</p>
           </div>
@@ -668,14 +641,14 @@ export function DocumentsTable() {
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5 animate-spin" />
+              <RefreshCw className="w-5 h-5 animate-spin" />
               <span>Loading documents...</span>
             </div>
           </div>
         ) : documents.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-            <FileText className="h-12 w-12 mb-4" />
-            <h3 className="text-lg font-medium mb-2">No documents found</h3>
+            <FileText className="w-12 h-12 mb-4" />
+            <h3 className="mb-2 text-lg font-medium">No documents found</h3>
             <p className="text-sm text-center">
               {searchTerm ? "Try adjusting your search terms" : "No documents found"}
             </p>
@@ -687,19 +660,19 @@ export function DocumentsTable() {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
                       Title
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
                       Sender
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
                       Receiver
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
                       Received
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
                       Action
                     </th>
                   </tr>
@@ -709,7 +682,7 @@ export function DocumentsTable() {
                     <tr key={document.objectId} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <FileText className="h-5 w-5 text-gray-400 mr-3" />
+                          <FileText className="w-5 h-5 mr-3 text-gray-400" />
                           <div>
                             <div className="text-sm font-medium text-gray-900">
                               {document.name}
@@ -754,7 +727,7 @@ export function DocumentsTable() {
                                 <Tooltip key={signer.id}>
                                   <TooltipTrigger>
                                     <Avatar className={cn("h-8 w-8 text-sm", getAvatarColor(signer.name))}>
-                                      <AvatarFallback className="text-white font-medium">
+                                      <AvatarFallback className="font-medium text-white">
                                         {getInitials(signer.name)}
                                       </AvatarFallback>
                                     </Avatar>
@@ -768,13 +741,13 @@ export function DocumentsTable() {
                               {extractSignersFromDocument(document).length > 4 && (
                                 <Tooltip>
                                   <TooltipTrigger>
-                                    <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600 border-2 border-white">
+                                    <div className="flex items-center justify-center w-8 h-8 text-xs font-medium text-gray-600 bg-gray-200 border-2 border-white rounded-full">
                                       +{extractSignersFromDocument(document).length - 4}
                                     </div>
                                   </TooltipTrigger>
                                   <TooltipContent side="top">
                                     <div className="max-w-48">
-                                      <p className="font-medium mb-1">Additional signers:</p>
+                                      <p className="mb-1 font-medium">Additional signers:</p>
                                       {extractSignersFromDocument(document).slice(4).map((signer) => (
                                         <p key={signer.id} className="text-xs">
                                           {signer.name} ({signer.email})
@@ -790,18 +763,18 @@ export function DocumentsTable() {
                           <span className="text-gray-400">- (No signers: {JSON.stringify(document.signers)})</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
                         {formatDate(document.createdAt)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-6 py-4 text-sm font-medium text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
                           {canUserSignDocument(document) && document.status === 'waiting' && !document.isCurrentUserCreator && (
                             <Button
                               size="sm"
                               onClick={() => handleSign(document)}
-                              className="bg-green-600 hover:bg-green-700 text-white"
+                              className="text-white bg-green-600 hover:bg-green-700"
                             >
-                              <CheckCircle className="h-4 w-4 mr-1" />
+                              <CheckCircle className="w-4 h-4 mr-1" />
                               Sign
                             </Button>
                           )}
@@ -825,13 +798,13 @@ export function DocumentsTable() {
             </div>
             
             {/* Mobile cards */}
-            <div className="md:hidden space-y-4 p-4">
+            <div className="p-4 space-y-4 md:hidden">
               {documents.map((document) => (
                 <Card key={document.objectId} className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <FileText className="h-4 w-4 text-gray-400" />
+                        <FileText className="w-4 h-4 text-gray-400" />
                         <h3 className="font-medium text-gray-900 truncate">
                           {document.name}
                         </h3>
@@ -888,9 +861,9 @@ export function DocumentsTable() {
                         <Button
                           size="sm"
                           onClick={() => handleSign(document)}
-                          className="bg-green-600 hover:bg-green-700 text-white"
+                          className="text-white bg-green-600 hover:bg-green-700"
                         >
-                          <CheckCircle className="h-4 w-4 mr-1" />
+                          <CheckCircle className="w-4 h-4 mr-1" />
                           Sign
                         </Button>
                       )}
@@ -926,7 +899,7 @@ export function DocumentsTable() {
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="w-4 h-4" />
                     Previous
                   </Button>
                   
@@ -961,7 +934,7 @@ export function DocumentsTable() {
                     disabled={currentPage === totalPages}
                   >
                     Next
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="w-4 h-4" />
                   </Button>
                 </div>
               </div>

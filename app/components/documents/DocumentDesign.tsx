@@ -97,27 +97,20 @@ export function DocumentDesign({
       setIsSigningInProgress(true)
       
       // Create signed PDF with signature overlays
-      const signerName = document.ExtUserPtr?.Name || 'Digital Signature'
+      const signerName = document.createdBy?.name || 'Digital Signature'
       const signedPdfBlob = await addSignaturesToPDF(fileUrl, signaturePositions, signerName)
       
       // Upload the signed PDF
-      const signedPdfUrl = await uploadSignedPDF(signedPdfBlob, document.Name)
+      await uploadSignedPDF(signedPdfBlob, document.name)
       
       // Update the document with signature information
-      await signDocument(document.objectId, {
-        signaturePositions,
-        signerDetails: {
-          name: document.ExtUserPtr?.Name || '',
-          email: document.ExtUserPtr?.Email || '',
-        },
-        signedFileUrl: signedPdfUrl
-      })
+      await signDocument(document.objectId)
       
       setShowSignatureDialog(false)
       
       toast({
         title: t("sign_success"),
-        description: t("you_just_signed", { documentName: document.Name }),
+        description: t("you_just_signed", { documentName: document.name }),
       })
       
       onContinue?.()
@@ -156,7 +149,7 @@ export function DocumentDesign({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle className="text-lg font-semibold">
-                {document.Name}
+                {document.name}
               </CardTitle>
               <div className="flex items-center space-x-2">
                 <Badge variant={document.status === 'signed' ? 'default' : 'secondary'}>
@@ -192,13 +185,13 @@ export function DocumentDesign({
             <CardContent className="space-y-3">
               <div className="flex items-center space-x-2 text-sm">
                 <FileText className="h-4 w-4 text-gray-500" />
-                <span className="text-gray-600">{document.Name}</span>
+                <span className="text-gray-600">{document.name}</span>
               </div>
               
-              {document.ExtUserPtr && (
+              {document.createdBy && (
                 <div className="flex items-center space-x-2 text-sm">
                   <Users className="h-4 w-4 text-gray-500" />
-                  <span className="text-gray-600">{document.ExtUserPtr.Name}</span>
+                  <span className="text-gray-600">{document.createdBy.name}</span>
                 </div>
               )}
               
@@ -285,7 +278,7 @@ export function DocumentDesign({
           
           <div className="py-4">
             <div className="p-4 bg-gray-50 rounded-lg border">
-              <h4 className="font-medium mb-2">{document.Name}</h4>
+              <h4 className="font-medium mb-2">{document.name}</h4>
               <p className="text-sm text-gray-600">
                 {t("you_will_receive_email")}
               </p>
