@@ -3,14 +3,8 @@ import { persist, createJSONStorage } from "zustand/middleware"
 import { type Document, type DocumentStatus } from "./documents-api-service"
 import { type CreateDocumentRequest } from "../../global.d"
 
-// Mock documents API service - this should be imported from the actual service
-const documentsApiService = {
-  getDocuments: async (_params?: GetDocumentsParams) => ({ results: [], totalCount: 0 }),
-  createDocument: async (_data: CreateDocumentRequest) => ({} as Document),
-  shareDocument: async (_documentId: string, _emails: string[], _message?: string) => {},
-  downloadDocument: async (_documentId: string, _signed?: boolean) => '',
-  deleteDocument: async (_documentId: string) => {},
-}
+// Enhanced documents API service - import the actual service
+import { documentsApiService } from "./documents-api-service"
 
 interface GetDocumentsParams {
   limit?: number
@@ -224,10 +218,10 @@ export const useDocumentsStore = create<DocumentsState>()(
         set({ isLoading: true, error: null })
         
         try {
-          console.log(`🔄 Refreshing documents cache...`)
+          console.log(`🔄 Refreshing documents cache using getDrive...`)
           
-          // Make ONE API call to get ALL documents using status='all'
-          // This will fetch from ALL report IDs and combine the results
+          // Use getDrive function following OpenSign's pattern
+          // This is the primary method for document listing in OpenSign
           const response = await documentsApiService.getDocuments({
             status: 'all', // This is KEY - fetch ALL documents from all statuses
             limit: 1000 // Get all documents
@@ -245,7 +239,7 @@ export const useDocumentsStore = create<DocumentsState>()(
             isLoading: false 
           })
           
-          console.log(`✅ Cache refreshed: ${response.results.length} documents loaded from ALL statuses`)
+          console.log(`✅ Cache refreshed: ${response.results.length} documents loaded via getDrive`)
           
           // Update displayed documents
           get().updateDisplayedDocuments()

@@ -1,5 +1,6 @@
 import { SimpleDocumentSign } from "@/app/components/documents/SimpleDocumentSign"
 import { redirect } from 'next/navigation'
+import { documentsApiService, type Document } from '@/app/lib/documents-api-service'
 
 interface SignPageProps {
   params: Promise<{ 
@@ -8,84 +9,60 @@ interface SignPageProps {
   }>
 }
 
-interface DocumentSigner {
-  Email: string;
-  Name: string;
-}
-
-interface DocumentPlaceholder {
-  email: string;
-  signerRole: string;
-}
-
-interface DocumentData {
-  objectId: string;
-  Name: string;
-  Status: string;
-  Signers?: DocumentSigner[];
-  Placeholders?: DocumentPlaceholder[];
+interface AuthorizationResult {
+  authorized: boolean
+  error: string | null
+  document: Document | null
+  redirectToView?: boolean
 }
 
 // Function to check if user is authorized to sign the document
-async function checkSigningAuthorization(documentId: string) {
+async function checkSigningAuthorization(documentId: string): Promise<AuthorizationResult> {
   try {
     console.log('🔍 Checking signing authorization for document:', documentId);
     
-    const response = await fetch(
-      `http://94.249.71.89:9000/1/classes/contracts_Document/${documentId}?include=Signers,Placeholders`,
-      {
-        headers: {
-          'X-Parse-Application-Id': 'opensign',
-          'X-Parse-Master-Key': 'XnAadwKxxByMr',
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    // Use the proper documents API service instead of direct Parse Server calls
+    const document = await documentsApiService.getDocument(documentId);
+    
+    console.log('📄 Document data for authorization:', {
+      objectId: document.objectId,
+      name: document.name,
+      status: document.status,
+      signers: document.signers?.map((s) => ({ email: s.email, name: s.name })),
+      canUserSign: document.canUserSign,
+      isCurrentUserCreator: document.isCurrentUserCreator
+    });
 
-    if (!response.ok) {
-      console.error('❌ Failed to fetch document for authorization check:', response.status);
+    // Check if the document exists and has proper status
+    if (!document) {
       return { authorized: false, error: 'Document not found', document: null };
     }
 
-    const document: DocumentData = await response.json();
-    console.log('📄 Document data for authorization:', {
-      objectId: document.objectId,
-      name: document.Name,
-      status: document.Status,
-      signers: document.Signers?.map((s) => ({ email: s.Email, name: s.Name })),
-      placeholders: document.Placeholders?.map((p) => ({ email: p.email, signerRole: p.signerRole }))
-    });
-
-    // Extract authorized emails from both Signers and Placeholders
-    const authorizedEmails = new Set<string>();
-    
-    // Add emails from Signers array
-    if (document.Signers) {
-      document.Signers.forEach((signer) => {
-        if (signer.Email) {
-          authorizedEmails.add(signer.Email.toLowerCase());
-        }
-      });
-    }
-    
-    // Add emails from Placeholders array
-    if (document.Placeholders) {
-      document.Placeholders.forEach((placeholder) => {
-        if (placeholder.email) {
-          authorizedEmails.add(placeholder.email.toLowerCase());
-        }
-      });
+    // Check if document is in a signable state
+    if (document.status === 'signed') {
+      return { authorized: false, error: 'Document already signed', document, redirectToView: true };
     }
 
-    console.log('✅ Authorized emails for document:', Array.from(authorizedEmails));
-    console.log('📊 Document status:', document.Status);
+    if (document.status === 'declined') {
+      return { authorized: false, error: 'Document has been declined', document };
+    }
+
+    if (document.status === 'expired') {
+      return { authorized: false, error: 'Document has expired', document };
+    }
+
+    // Check if current user can sign this document
+    if (!document.canUserSign) {
+      return { authorized: false, error: 'User not authorized to sign this document', document };
+    }
+
+    console.log('✅ Authorization passed for document:', documentId);
+    console.log('📊 Document status:', document.status);
 
     return { 
       authorized: true, 
       error: null, 
-      document,
-      authorizedEmails: Array.from(authorizedEmails),
-      status: document.Status
+      document
     };
 
   } catch (error) {
@@ -97,21 +74,22 @@ async function checkSigningAuthorization(documentId: string) {
 export default async function SignPage({ params }: SignPageProps) {
   const { id } = await params
   
+  console.log(`🔄 Sign page loaded for document: ${id}`);
+  
   // Check authorization before rendering the sign component
   const authCheck = await checkSigningAuthorization(id);
   
   if (!authCheck.authorized) {
     console.error(`❌ Authorization check failed for document ${id}:`, authCheck.error);
+    
+    if (authCheck.redirectToView) {
+      redirect(`/documents/${id}?status=already-signed`);
+    }
+    
     redirect('/documents?error=authorization-failed');
   }
 
-  if (authCheck.status === 'signed') {
-    console.log(`📝 Document ${id} is already signed, redirecting to view mode`);
-    redirect(`/documents/${id}?status=already-signed`);
-  }
-
   console.log(`✅ Authorization passed for document ${id}, rendering sign component`);
-  console.log(`📧 Authorized emails:`, authCheck.authorizedEmails);
   
   return <SimpleDocumentSign 
     documentId={id}

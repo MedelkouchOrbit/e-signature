@@ -34,8 +34,9 @@ import { type Document, type DocumentStatus } from "@/app/lib/documents-api-serv
 import { useToast } from "@/hooks/use-toast"
 import { reminderApiService } from "@/app/lib/reminder-api-service"
 
-// Note: Modern OpenSign document services are available at @/app/lib/opensign/document-services
-// This component can be migrated to use useDrive, useDocument, useSignDocument when needed
+// Enhanced with OpenSign patterns: now using getDrive function for document listing
+// This component integrates OpenSign's getDrive cloud function for efficient document management
+// Maintains compatibility with existing UI/UX while leveraging OpenSign's backend architecture
 
 // Helper functions for avatar
 const getInitials = (name: string) => {
@@ -364,39 +365,47 @@ function FilterTabs({
   }
 }) {
   const filters = [
-    { key: 'all', label: 'All', count: counts.all },
-    { key: 'inbox', label: 'Inbox', count: counts.inbox },
-    { key: 'waiting', label: 'Waiting', count: counts.waiting },
-    { key: 'signed', label: 'Signed', count: counts.signed },
-    { key: 'drafted', label: 'Draft', count: counts.drafted },
-    { key: 'partially_signed', label: 'Partially Signed', count: counts.partially_signed },
-    { key: 'declined', label: 'Declined', count: counts.declined },
-    { key: 'expired', label: 'Expired', count: counts.expired }
+    { key: 'all', label: 'All', count: counts.all, description: 'All documents' },
+    { key: 'inbox', label: 'Inbox', count: counts.inbox, description: 'Documents requiring your action' },
+    { key: 'waiting', label: 'Waiting', count: counts.waiting, description: 'All documents with waiting status' },
+    { key: 'signed', label: 'Signed', count: counts.signed, description: 'Completed documents' },
+    { key: 'drafted', label: 'Draft', count: counts.drafted, description: 'Draft documents' },
+    { key: 'partially_signed', label: 'Partially Signed', count: counts.partially_signed, description: 'Documents with some signatures' },
+    { key: 'declined', label: 'Declined', count: counts.declined, description: 'Declined documents' },
+    { key: 'expired', label: 'Expired', count: counts.expired, description: 'Expired documents' }
   ]
   
   return (
     <div className="flex p-1 space-x-1 bg-gray-100 rounded-lg">
       {filters.map((filter) => (
-        <button
-          key={filter.key}
-          onClick={() => onFilterChange(filter.key as DocumentStatus | 'all' | 'inbox')}
-          className={cn(
-            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-2",
-            currentFilter === filter.key
-              ? "bg-white text-gray-900 shadow-sm"
-              : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
-          )}
-        >
-          {filter.label}
-          <span className={cn(
-            "px-1.5 py-0.5 text-xs rounded-full",
-            currentFilter === filter.key
-              ? "bg-blue-100 text-blue-800"
-              : "bg-gray-200 text-gray-600"
-          )}>
-            {filter.count}
-          </span>
-        </button>
+        <TooltipProvider key={filter.key}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => onFilterChange(filter.key as DocumentStatus | 'all' | 'inbox')}
+                className={cn(
+                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-2",
+                  currentFilter === filter.key
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
+                )}
+              >
+                {filter.label}
+                <span className={cn(
+                  "px-1.5 py-0.5 text-xs rounded-full",
+                  currentFilter === filter.key
+                    ? "bg-blue-100 text-blue-800"
+                    : "bg-gray-200 text-gray-600"
+                )}>
+                  {filter.count}
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{filter.description}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ))}
     </div>
   )
@@ -458,6 +467,45 @@ export function DocumentsTable() {
   // Get document counts
   const counts = getDocumentCounts()
   
+  // 🐛 DEBUG: Log filter data to understand inbox vs waiting difference
+  useEffect(() => {
+    console.log('=== FILTER DEBUG ===')
+    console.log('Current filter:', currentFilter)
+    console.log('Total documents loaded:', documents.length)
+    console.log('Document counts:', counts)
+    
+    if (documents.length > 0) {
+      console.log('Sample document analysis:')
+      documents.slice(0, 3).forEach((doc, index) => {
+        console.log(`Document ${index + 1}:`, {
+          name: doc.name,
+          status: doc.status,
+          canUserSign: doc.canUserSign,
+          userRole: doc.userRole,
+          isCurrentUserCreator: doc.isCurrentUserCreator
+        })
+      })
+      
+      // Show specific filtering criteria
+      const inboxDocs = documents.filter(doc => doc.canUserSign || doc.userRole === 'assignee')
+      const waitingDocs = documents.filter(doc => doc.status === 'waiting')
+      
+      console.log('Inbox filter would show:', inboxDocs.length, 'documents')
+      console.log('Waiting filter would show:', waitingDocs.length, 'documents')
+      
+      console.log('Inbox documents:', inboxDocs.map(d => ({ 
+        name: d.name, 
+        canUserSign: d.canUserSign, 
+        userRole: d.userRole 
+      })))
+      console.log('Waiting documents:', waitingDocs.map(d => ({ 
+        name: d.name, 
+        status: d.status 
+      })))
+    }
+    console.log('===================')
+  }, [documents, currentFilter, counts])
+  
   // Action handlers
   const handleShare = useCallback(async (document: Document) => {
     // Implement share functionality
@@ -474,11 +522,27 @@ export function DocumentsTable() {
   
   const handleDownload = useCallback(async (document: Document) => {
     try {
-      const url = await downloadDocument(document.objectId, document.status === 'signed')
+      console.log('📥 Downloading document:', document.name);
+      
+      // Enhanced download following OpenSign patterns
+      // Download signed version if document is completed, otherwise original
+      const shouldDownloadSigned = document.status === 'signed' || 
+                                   document.status === 'partially_signed';
+      
+      const url = await downloadDocument(document.objectId, shouldDownloadSigned)
       if (url) {
+        // OpenSign style: open in new tab or trigger download
+        if (shouldDownloadSigned) {
+          console.log('📄 Opening signed document in new tab');
+        } else {
+          console.log('📄 Opening original document in new tab');
+        }
         window.open(url, '_blank')
+      } else {
+        throw new Error('No download URL received')
       }
-    } catch {
+    } catch (error) {
+      console.error('Error downloading document:', error)
       toast({
         title: "Download Error",
         description: "Failed to download document",
@@ -515,7 +579,10 @@ export function DocumentsTable() {
   
   const handleSign = useCallback(async (document: Document) => {
     try {
-      // Simplified sign handler - check canUserSign property
+      // Enhanced sign handler following OpenSign patterns
+      console.log('🖊️ Initiating document signing:', document.name);
+      
+      // Check if user can sign (enhanced validation)
       if (!document.canUserSign) {
         toast({
           title: "Permission Denied",
@@ -525,12 +592,54 @@ export function DocumentsTable() {
         return
       }
       
-      // Navigate to sign page
-      router.push(`/documents/${document.objectId}/sign`)
+      // Check document status for signing eligibility
+      if (document.status !== 'waiting' && document.status !== 'partially_signed') {
+        toast({
+          title: "Document Not Available",
+          description: `This document is ${document.status} and cannot be signed.`,
+          variant: "destructive"
+        })
+        return
+      }
+      
+      // Check if sendInOrder is enabled and if it's the user's turn
+      if (document.sendInOrder) {
+        const currentUserSigner = document.signers.find(signer => 
+          signer.email === /* Get from auth or localStorage */
+          (typeof window !== 'undefined' ? 
+            JSON.parse(localStorage.getItem('auth-storage') || '{}')?.state?.user?.email : 
+            null)
+        );
+        
+        if (currentUserSigner) {
+          const waitingSigners = document.signers
+            .filter(signer => signer.status === 'waiting')
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+          
+          const nextSigner = waitingSigners[0];
+          if (nextSigner && nextSigner.email !== currentUserSigner.email) {
+            toast({
+              title: "Signing Order",
+              description: `Please wait for ${nextSigner.name} to sign first.`,
+              variant: "destructive"
+            })
+            return
+          }
+        }
+      }
+      
+      // Navigate to signing page (OpenSign style: /recipientSignPdf or /placeHolderSign)
+      const signUrl = document.isCurrentUserCreator 
+        ? `/documents/${document.objectId}/placeholder-sign`  // For document creator (PlaceHolderSign)
+        : `/documents/${document.objectId}/sign`;              // For recipients (SignyourselfPdf)
+      
+      console.log(`📋 Navigating to: ${signUrl}`);
+      router.push(signUrl)
+      
     } catch (error) {
-      console.error('Error navigating to sign page:', error)
+      console.error('Error initiating document signing:', error)
       toast({
-        title: "Navigation Error",
+        title: "Signing Error",
         description: "Could not open the signing page. Please try again.",
         variant: "destructive"
       })
@@ -554,6 +663,7 @@ export function DocumentsTable() {
   }, [toast])
   
   const handleRefresh = useCallback(() => {
+    console.log('🔄 Refreshing documents using getDrive function...')
     loadDocuments()
   }, [loadDocuments])
   
@@ -768,15 +878,43 @@ export function DocumentsTable() {
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
-                          {canUserSignDocument(document) && document.status === 'waiting' && !document.isCurrentUserCreator && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleSign(document)}
-                              className="text-white bg-green-600 hover:bg-green-700"
-                            >
+                          {document.status === 'waiting' && !document.isCurrentUserCreator && (
+                            <>
+                              {canUserSignDocument(document) ? (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSign(document)}
+                                  className="text-white bg-green-600 hover:bg-green-700"
+                                >
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Sign
+                                </Button>
+                              ) : (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        disabled
+                                        className="text-gray-400 bg-gray-100 cursor-not-allowed"
+                                      >
+                                        <AlertCircle className="w-4 h-4 mr-1" />
+                                        Sign
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>You are not authorized to sign this document</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </>
+                          )}
+                          {canUserSignDocument(document) && document.status === 'signed' && !document.isCurrentUserCreator && (
+                            <Badge variant="outline" className="text-green-600 bg-green-50">
                               <CheckCircle className="w-4 h-4 mr-1" />
-                              Sign
-                            </Button>
+                              Signed
+                            </Badge>
                           )}
                           <DocumentActionMenu
                             document={document}
@@ -857,15 +995,43 @@ export function DocumentsTable() {
                     </div>
                     
                     <div className="flex items-center gap-2">
-                      {canUserSignDocument(document) && document.status === 'waiting' && !document.isCurrentUserCreator && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleSign(document)}
-                          className="text-white bg-green-600 hover:bg-green-700"
-                        >
+                      {document.status === 'waiting' && !document.isCurrentUserCreator && (
+                        <>
+                          {canUserSignDocument(document) ? (
+                            <Button
+                              size="sm"
+                              onClick={() => handleSign(document)}
+                              className="text-white bg-green-600 hover:bg-green-700"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Sign
+                            </Button>
+                          ) : (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    disabled
+                                    className="text-gray-400 bg-gray-100 cursor-not-allowed"
+                                  >
+                                    <AlertCircle className="w-4 h-4 mr-1" />
+                                    Sign
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>You are not authorized to sign this document</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </>
+                      )}
+                      {canUserSignDocument(document) && document.status === 'signed' && !document.isCurrentUserCreator && (
+                        <Badge variant="outline" className="text-green-600 bg-green-50">
                           <CheckCircle className="w-4 h-4 mr-1" />
-                          Sign
-                        </Button>
+                          Signed
+                        </Badge>
                       )}
                       <DocumentActionMenu
                         document={document}

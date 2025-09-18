@@ -5,6 +5,7 @@ import "../globals.css"
 import { Providers } from "../providers"
 import { getMessages } from "next-intl/server"
 import LayoutRenderer from "@/app/components/shared/layout-renderer"
+import { SessionTokenDebug } from "@/app/components/debug/SessionTokenDebug"
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -91,6 +92,7 @@ export default async function LocaleLayout({
         />
       </head>
       <body className={inter.className} suppressHydrationWarning>
+        <SessionTokenDebug />
         <Providers messages={messages} locale={validatedLocale}>
           <LayoutRenderer>
             {children}

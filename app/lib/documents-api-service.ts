@@ -452,10 +452,95 @@ class DocumentsApiService {
   }
 
   /**
-   * Get documents using OpenSign getReport function
-   * Uses the correct report ID based on status filter
+   * Get documents using OpenSign getDrive function (enhanced with OpenSign patterns)
+   * Uses the getDrive cloud function for document listing with folder support
    */
   async getDocuments(params: GetDocumentsParams = {}): Promise<DocumentListResponse> {
+    try {
+      const { status, limit = 50, skip = 0, searchTerm = '', assignedToMe = false } = params;
+
+      console.log('📄 Fetching documents using getDrive function:', { status, limit, skip, searchTerm, assignedToMe });
+
+      // Use getDrive function (OpenSign's primary document listing method)
+      const driveResponse = await openSignApiService.callFunction<Document[]>(
+        'getDrive',
+        {
+          docId: null, // null for root level documents
+          skip,
+          limit,
+          searchTerm
+        }
+      );
+
+      console.log('📥 getDrive response received:', driveResponse);
+
+      if (!driveResponse || !Array.isArray(driveResponse)) {
+        console.warn('⚠️ Invalid getDrive response format, falling back to getReport...');
+        
+        // Fallback to getReport method for compatibility
+        return this.getDocumentsWithReport(params);
+      }
+
+      // Transform OpenSign document format to our internal format
+      let documents = driveResponse.map(doc => {
+        try {
+          return transformOpenSignDocument(doc as unknown as OpenSignDocument);
+        } catch (error) {
+          console.warn('⚠️ Error transforming document:', doc, error);
+          return null;
+        }
+      }).filter(Boolean) as Document[];
+
+      console.log(`📊 Transformed ${documents.length} documents from getDrive`);
+
+      // Apply status filtering if needed
+      if (status && status !== 'all') {
+        if (status === 'inbox') {
+          // For inbox, show documents where user can sign or is assigned
+          documents = documents.filter(doc => doc.canUserSign || doc.userRole === 'assignee');
+        } else {
+          // Filter by specific status
+          documents = documents.filter(doc => doc.status === status);
+        }
+      }
+
+      // Apply assignedToMe filter
+      if (assignedToMe) {
+        documents = documents.filter(doc => doc.canUserSign || doc.userRole === 'assignee');
+      }
+
+      // Apply search filter
+      if (searchTerm?.trim()) {
+        const search = searchTerm.toLowerCase().trim();
+        documents = documents.filter(doc => 
+          doc.name?.toLowerCase().includes(search) ||
+          doc.description?.toLowerCase().includes(search) ||
+          doc.senderEmail?.toLowerCase().includes(search) ||
+          doc.receiverNames?.some(name => name.toLowerCase().includes(search))
+        );
+      }
+
+      console.log(`✅ Filtered to ${documents.length} documents (status: ${status}, search: "${searchTerm}")`);
+
+      return {
+        results: documents,
+        count: documents.length
+      };
+
+    } catch (error) {
+      console.error('❌ Error in getDrive documents:', error);
+      
+      // Fallback to getReport method
+      console.log('🔄 Falling back to getReport method...');
+      return this.getDocumentsWithReport(params);
+    }
+  }
+
+  /**
+   * Fallback method using getReport function (original implementation)
+   * Uses the correct report ID based on status filter
+   */
+  private async getDocumentsWithReport(params: GetDocumentsParams = {}): Promise<DocumentListResponse> {
     try {
       const { status, limit = 10, skip = 0, searchTerm = '' } = params;
 
@@ -538,7 +623,7 @@ class DocumentsApiService {
         if (status === 'inbox') {
           // For "Inbox" filter, we want documents waiting for current user's signature
           // We'll fetch from waiting documents and filter by user permission
-          reportId = '1MwEuxLEkF'; // waiting documents
+          reportId = 'ByHuevtCFY'; // waiting documents
         } else if (status) {
           // For specific status filters, use the corresponding report ID
           const statusToReportId: Record<DocumentStatus, string> = {
@@ -623,19 +708,56 @@ class DocumentsApiService {
   }
   
   /**
-   * Get single document by ID
+   * Get single document by ID using OpenSign's getDocument cloud function
    */
   async getDocument(documentId: string): Promise<Document> {
     try {
-      const queryParams = new URLSearchParams({
-        include: 'CreatedBy,ExtUserPtr,Signers,Placeholders'
-      })
+      console.log('📄 Fetching single document using getDocument function:', documentId);
       
-      const response = await openSignApiService.get<OpenSignDocument>(
-        `classes/contracts_Document/${documentId}?${queryParams.toString()}`
-      )
+      // Use getDocument cloud function (OpenSign's method for single document retrieval)
+      const response = await openSignApiService.callFunction<{
+        result: OpenSignDocument
+      } | OpenSignDocument>(
+        'getDocument',
+        {
+          docId: documentId,
+          include: 'CreatedBy,ExtUserPtr,Signers,Placeholders,AuditTrail.UserPtr'
+        }
+      );
       
-      return transformOpenSignDocument(response)
+      console.log('📥 getDocument response received:', response);
+      
+      if (!response) {
+        throw new Error('Document not found');
+      }
+      
+      // Handle potential error response from getDocument cloud function
+      const responseWithError = response as OpenSignDocument & { error?: string };
+      if (responseWithError.error) {
+        throw new Error(responseWithError.error);
+      }
+      
+      // Extract the actual document from cloud function response
+      // Cloud functions return data wrapped in { result: ... }
+      let documentData: OpenSignDocument;
+      if ('result' in response && response.result) {
+        documentData = response.result as OpenSignDocument;
+        console.log('📄 Extracted document from cloud function result');
+      } else {
+        documentData = response as OpenSignDocument;
+        console.log('📄 Using direct response as document');
+      }
+      
+      console.log('📄 Document data to transform:', {
+        objectId: documentData.objectId,
+        Name: documentData.Name,
+        Status: documentData.Status,
+        Signers: documentData.Signers?.length,
+        Placeholders: documentData.Placeholders?.length,
+        CreatedBy: documentData.CreatedBy?.objectId
+      });
+      
+      return transformOpenSignDocument(documentData)
     } catch (error) {
       console.error('Error fetching document:', error)
       throw error

@@ -27,12 +27,56 @@ export function PDFViewer({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [zoom, setZoom] = useState(100)
+  const [signedUrl, setSignedUrl] = useState<string>('')
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setIsLoading(true)
-    setError(null)
+    if (fileUrl && fileUrl.includes('94.249.71.89:9000/api/app/files/')) {
+      const getSignedUrl = async () => {
+        try {
+          setIsLoading(true)
+          setError(null)
+          
+          const sessionToken = localStorage.getItem('opensign_session_token')
+          if (!sessionToken) {
+            setSignedUrl(fileUrl)
+            return
+          }
+
+          const response = await fetch('http://94.249.71.89:9000/api/app/functions/getsignedurl', {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json, text/plain, */*',
+              'Content-Type': 'Application/json',
+              'X-Parse-Application-Id': 'opensign',
+              'X-Parse-Session-Token': sessionToken,
+            },
+            body: JSON.stringify({
+              url: fileUrl,
+              docId: "",
+              templateId: "templateID"
+            })
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            setSignedUrl(data.result || fileUrl)
+          } else {
+            setSignedUrl(fileUrl)
+          }
+        } catch (error) {
+          console.error('Error getting signed URL:', error)
+          setSignedUrl(fileUrl)
+        }
+      }
+
+      getSignedUrl()
+    } else {
+      setSignedUrl(fileUrl)
+      setIsLoading(true)
+      setError(null)
+    }
   }, [fileUrl])
 
   const handleIframeLoad = () => {
@@ -99,7 +143,7 @@ export function PDFViewer({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open(fileUrl, '_blank')}
+            onClick={() => window.open(signedUrl || fileUrl, '_blank')}
           >
             <Download className="h-4 w-4 mr-1" />
             Download
@@ -132,7 +176,7 @@ export function PDFViewer({
                 variant="outline" 
                 size="sm" 
                 className="mt-4"
-                onClick={() => window.open(fileUrl, '_blank')}
+                onClick={() => window.open(signedUrl || fileUrl, '_blank')}
               >
                 Open in new tab
               </Button>
@@ -140,10 +184,10 @@ export function PDFViewer({
           </div>
         )}
 
-        {!error && (
+        {!error && signedUrl && (
           <iframe
             ref={iframeRef}
-            src={fileUrl}
+            src={signedUrl}
             className="w-full h-full border-0"
             style={{ 
               transform: `scale(${zoom / 100})`,

@@ -1,4 +1,4 @@
-import { API_BASE_URL, API_OPENSIGN_URL, OPENSIGN_APP_ID } from "./constants";
+import { API_BASE_URL, OPENSIGN_APP_ID } from "./constants";
 
 // Generic API error class
 export class ApiError extends Error {
@@ -149,7 +149,7 @@ export const openSignApiService = {
     
     const sessionToken = getSessionToken();
     
-    // ✅ OpenSign format: ALL endpoints use POST with metadata in body, no Parse headers
+    // ✅ FIXED: OpenSign format uses application/json content-type and sessiontoken in headers
     const isParseRestAPI = path.startsWith('users/') || path.startsWith('classes/') || path.startsWith('installations/') || path.startsWith('roles/') || path.startsWith('sessions/');
     
     const openSignData = {
@@ -157,7 +157,6 @@ export const openSignApiService = {
       _ApplicationId: "opensign",
       _ClientVersion: "js6.1.1",
       _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
-      ...(sessionToken && { _SessionToken: sessionToken }),
       // Add _method: "GET" for Parse REST API endpoints
       ...(isParseRestAPI && { _method: "GET" })
     };
@@ -166,14 +165,22 @@ export const openSignApiService = {
     console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
     console.log(`[OpenSign] Data:`, openSignData);
     
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Parse-Application-Id": OPENSIGN_APP_ID,
+      "Origin": "http://94.249.71.89:9000",
+      "Referer": "http://94.249.71.89:9000/",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+    };
+    
+    // ✅ FIXED: Add session token in headers, not in body
+    if (sessionToken) {
+      headers["sessionToken"] = sessionToken;
+    }
+    
     const response = await fetch(`${baseUrl}/${path}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "text/plain",
-        "Origin": "http://94.249.71.89:9000",
-        "Referer": "http://94.249.71.89:9000/",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
-      },
+      headers,
       body: JSON.stringify(openSignData),
     });
     
@@ -189,27 +196,34 @@ export const openSignApiService = {
     
     const sessionToken = getSessionToken();
     
-    // ✅ OpenSign format: ALL requests use POST with metadata in body, Content-Type: text/plain
+    // ✅ FIXED: OpenSign format uses application/json content-type and sessiontoken in headers
     const openSignData = {
       ...data,
       _ApplicationId: "opensign",
       _ClientVersion: "js6.1.1",
-      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
-      ...(sessionToken && { _SessionToken: sessionToken })
+      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac"
     };
     
     console.log(`[OpenSign] POST ${baseUrl}/${path}`);
     console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
     console.log(`[OpenSign] Data:`, openSignData);
     
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Parse-Application-Id": OPENSIGN_APP_ID,
+      "Origin": "http://94.249.71.89:9000",
+      "Referer": "http://94.249.71.89:9000/",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+    };
+    
+    // ✅ FIXED: Add session token in headers, not in body
+    if (sessionToken) {
+      headers["sessionToken"] = sessionToken;
+    }
+    
     const response = await fetch(`${baseUrl}/${path}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "text/plain",
-        "Origin": "http://94.249.71.89:9000",
-        "Referer": "http://94.249.71.89:9000/",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
-      },
+      headers,
       body: JSON.stringify(openSignData),
     });
     
@@ -225,28 +239,35 @@ export const openSignApiService = {
     
     const sessionToken = getSessionToken();
     
-    // ✅ OpenSign format: ALL requests use POST with metadata in body, Content-Type: text/plain
+    // ✅ FIXED: OpenSign format uses application/json content-type and sessiontoken in headers
     const openSignData = {
       ...data,
       _method: "PUT",
       _ApplicationId: "opensign",
       _ClientVersion: "js6.1.1",
-      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
-      ...(sessionToken && { _SessionToken: sessionToken })
+      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac"
     };
     
     console.log(`[OpenSign] POST ${baseUrl}/${path} (with _method: PUT)`);
     console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
     console.log(`[OpenSign] Data:`, openSignData);
     
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Parse-Application-Id": OPENSIGN_APP_ID,
+      "Origin": "http://94.249.71.89:9000",
+      "Referer": "http://94.249.71.89:9000/",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+    };
+    
+    // ✅ FIXED: Add session token in headers, not in body
+    if (sessionToken) {
+      headers["sessionToken"] = sessionToken;
+    }
+    
     const response = await fetch(`${baseUrl}/${path}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "text/plain",
-        "Origin": "http://94.249.71.89:9000",
-        "Referer": "http://94.249.71.89:9000/",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
-      },
+      headers,
       body: JSON.stringify(openSignData),
     });
     
@@ -312,30 +333,32 @@ export const openSignApiService = {
       sessionToken = getSessionToken();
     }
     
-    // ✅ FIX: Use the exact format that works in curl - include session token in payload
+    // ✅ FIXED: Don't include session token in payload for cloud functions
     const openSignParams = {
-      ...params,
-      ...(sessionToken && !options?.excludeSessionToken && { "_SessionToken": sessionToken })
+      ...params
     };
     
     console.log(`[OpenSign Cloud Function] Calling ${functionName} with params:`, openSignParams);
     console.log(`[OpenSign Cloud Function] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
     
-    // ✅ Match the working curl request headers exactly
+    // ✅ FIXED: Use application/json content-type and sessiontoken in headers
     const headers: Record<string, string> = {
       "Accept": "*/*",
       "Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7",
       "Cache-Control": "no-cache",
       "Connection": "keep-alive",
-      "Content-Type": "text/plain",  // ✅ Changed from application/json to text/plain
-      "Origin": "http://94.249.71.89:9000",  // ✅ Changed from localhost to actual server
+      "Content-Type": "application/json",  // ✅ FIXED: Changed from text/plain to application/json
+      "X-Parse-Application-Id": OPENSIGN_APP_ID,
+      "Origin": "http://94.249.71.89:9000",
       "Pragma": "no-cache",
-      "Referer": "http://94.249.71.89:9000/users",  // ✅ Changed referer
+      "Referer": "http://94.249.71.89:9000/users",
       "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
     };
     
-    // ✅ Remove session token header - only use payload
-    // No sessiontoken header or X-Parse-Application-Id header as per working curl
+    // ✅ FIXED: Add session token in headers, not in body
+    if (sessionToken && !options?.excludeSessionToken) {
+      headers["sessionToken"] = sessionToken;
+    }
     
     const response = await fetch(`${baseUrl}/functions/${functionName}`, {
       method: "POST",
@@ -353,6 +376,14 @@ export const openSignApiService = {
   setSessionToken,
   getSessionToken,
   clearSessionToken,
+
+  // Debug utility: Set OpenSign session token (for testing with superadmin)
+  setOpenSignSessionToken: (token: string) => {
+    console.log('🔧 Setting OpenSign session token for testing...');
+    setSessionToken(token);
+    console.log('✅ Session token set. You can now test document signing.');
+    console.log('💡 Try refreshing the page and clicking the sign button again.');
+  },
 
   // Helper function for direct fetch calls with OpenSign format
   directFetch: async <T>(path: string, options: RequestInit = {}): Promise<T> => {
@@ -377,20 +408,29 @@ export const openSignApiService = {
       ...bodyData,
       _ApplicationId: "opensign",
       _ClientVersion: "js6.1.1",
-      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
-      ...(sessionToken && { _SessionToken: sessionToken })
+      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac"
     };
+    
+    const baseHeaders: Record<string, string> = {
+      "Content-Type": "application/json",  // ✅ FIXED: Changed from text/plain to application/json
+      "X-Parse-Application-Id": OPENSIGN_APP_ID,
+      "Origin": "http://94.249.71.89:9000",
+      "Referer": "http://94.249.71.89:9000/",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+    };
+    
+    // Merge with existing headers
+    const combinedHeaders = { ...baseHeaders, ...(options.headers as Record<string, string> || {}) };
+    
+    // ✅ FIXED: Add session token in headers, not in body
+    if (sessionToken) {
+      combinedHeaders["sessionToken"] = sessionToken;
+    }
     
     const requestOptions: RequestInit = {
       ...options,
       method: options.method || "POST",
-      headers: {
-        "Content-Type": "text/plain",
-        "Origin": "http://94.249.71.89:9000",
-        "Referer": "http://94.249.71.89:9000/",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-        ...options.headers
-      },
+      headers: combinedHeaders,
       body: JSON.stringify(openSignData)
     };
     

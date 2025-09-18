@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl"
 import { AuthGuard } from "@/app/components/auth/AuthGuard"
 import { useTemplatesStore } from "@/app/lib/templates-store"
 import { templatesApiService } from "@/app/lib/templates-api-service"
-import { PDFViewerWrapper } from "@/app/components/documents/PDFViewerWrapper"
+import { PDFViewer } from "@/app/components/documents/PDFViewer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { 
@@ -28,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, Search, MoreVertical, Eye, Trash2, Filter } from "lucide-react"
+import { Plus, Search, MoreVertical, Eye, Edit, Trash2, Filter } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
@@ -94,10 +94,40 @@ export default function TemplatesPage() {
     if (!confirm(t("deleteConfirmation"))) return
     
     try {
-      await templatesApiService.deleteTemplate(templateId)
+      const sessionToken = localStorage.getItem('opensign_session_token')
+      if (!sessionToken) {
+        toast.error('No session token found')
+        return
+      }
+
+      // Archive the template instead of deleting it
+      const response = await fetch(`http://94.249.71.89:9000/api/app/classes/contracts_Template/${templateId}`, {
+        method: 'PUT',
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Content-Type': 'application/json',
+          'Origin': 'http://94.249.71.89:9000',
+          'Pragma': 'no-cache',
+          'Referer': 'http://94.249.71.89:9000/report/6TeaPr321t',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+          'X-Parse-Application-Id': 'opensign',
+          'X-Parse-Session-Token': sessionToken
+        },
+        body: JSON.stringify({ IsArchive: true })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to archive template: ${response.status}`)
+      }
+
+      // Remove from local state
       deleteTemplate(templateId)
       toast.success(t("messages.deleteSuccess"))
-    } catch {
+    } catch (error) {
+      console.error('Error archiving template:', error)
       toast.error(t("messages.deleteFailed"))
     }
   }
@@ -257,7 +287,13 @@ export default function TemplatesPage() {
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {(() => {
-                          const signers = (template as unknown as TemplateData).Signers || []
+                          // First try the lowercase 'signers' (from our transform function)
+                          let signers = (template as unknown as TemplateData).signers || []
+                          // Fallback to uppercase 'Signers' (direct API response)
+                          if (!Array.isArray(signers) || signers.length === 0) {
+                            signers = (template as unknown as TemplateData).Signers || []
+                          }
+                          
                           if (Array.isArray(signers) && signers.length > 0) {
                             return signers.map((signer: unknown, index: number) => {
                               const s = signer as { name?: string; Name?: string; email?: string; Email?: string };
@@ -293,6 +329,12 @@ export default function TemplatesPage() {
                             {t("actions.preview")}
                           </DropdownMenuItem>
                           <DropdownMenuItem 
+                            onClick={() => router.push(`/templates/edit/${template.id}`)}
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            {t("actions.edit")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
                             onClick={() => handleDeleteTemplate(template.id)}
                             className="text-red-600 dark:text-red-400"
                           >
@@ -320,7 +362,7 @@ export default function TemplatesPage() {
               </DialogTitle>
             </DialogHeader>
             <div className="flex-1 overflow-hidden">
-              <PDFViewerWrapper
+              <PDFViewer
                 fileUrl={previewTemplate.url}
               />
             </div>

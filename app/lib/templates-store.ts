@@ -278,52 +278,97 @@ export const useTemplatesStore = create<TemplatesState>()(
           console.log('[Templates Store] Uploading template file to OpenSign Parse Server')
           set({ uploadProgress: 20 })
           
-          // Generate unique filename
-          const fileName = metadata.name || `template-${Date.now()}-${file.name}`
-          const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
-          
-          console.log('[Templates Store] Using base64fileupload function with file data')
+          console.log('[Templates Store] Using OpenSign direct file upload pattern')
           set({ uploadProgress: 40 })
           
           // Convert file to base64
           const fileBuffer = await file.arrayBuffer()
           const base64Data = Buffer.from(fileBuffer).toString('base64')
           
-          // Use the base64fileupload function (same as documents)
-          const uploadResponse = await fetch('http://94.249.71.89:9000/api/app/functions/base64fileupload', {
+          console.log('[Templates Store] Step 1: Upload base64 data to Parse files')
+          set({ uploadProgress: 40 })
+          
+          // Step 1: Upload file data using direct Parse file upload (matching the curl request)
+          const fileId = `${Date.now()}${Math.random().toString(36).substr(2, 9)}.pdf`
+          const uploadResponse = await fetch(`http://94.249.71.89:9000/api/app/files/${fileId}`, {
             method: 'POST',
             headers: {
+              'Accept': '*/*',
+              'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
               'Content-Type': 'text/plain',
               'Origin': 'http://94.249.71.89:9000',
-              'Referer': 'http://94.249.71.89:9000/',
+              'Pragma': 'no-cache',
+              'Referer': 'http://94.249.71.89:9000/form/sHAnZphf69',
               'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
             },
             body: JSON.stringify({
-              fileName: sanitizedFileName,
-              fileData: base64Data,
-              _ApplicationId: process.env.NEXT_PUBLIC_OPENSIGN_APP_ID || 'opensign',
+              base64: base64Data,
+              fileData: { metadata: {}, tags: {} },
+              _ContentType: 'application/pdf',
+              _ApplicationId: 'opensign',
               _ClientVersion: 'js6.1.1',
-              _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+              _InstallationId: '5b57e02d-5015-4c69-bede-06310ad8bae9',
               _SessionToken: localStorage.getItem('opensign_session_token') || ''
             }),
           })
 
           if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text()
-            console.error('[Templates Store] Base64 file upload failed:', errorText)
+            console.error('[Templates Store] File upload failed:', errorText)
             throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`)
           }
 
           const uploadData = await uploadResponse.json()
-          console.log('[Templates Store] File uploaded via base64fileupload:', uploadData)
+          console.log('[Templates Store] File uploaded to Parse:', uploadData)
 
-          if (!uploadData.result || !uploadData.result.url) {
-            throw new Error(uploadData.error || 'Upload failed - no URL returned')
+          if (!uploadData.url) {
+            throw new Error('Upload failed - no URL returned')
+          }
+
+          console.log('[Templates Store] Step 2: Call fileupload function for signed URL')
+          set({ uploadProgress: 70 })
+
+          // Step 2: Call fileupload function to get signed URL (matching the second curl request)
+          const fileUploadResponse = await fetch('http://94.249.71.89:9000/api/app/functions/fileupload', {
+            method: 'POST',
+            headers: {
+              'Accept': '*/*',
+              'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+              'Content-Type': 'text/plain',
+              'Origin': 'http://94.249.71.89:9000',
+              'Pragma': 'no-cache',
+              'Referer': 'http://94.249.71.89:9000/form/sHAnZphf69',
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+            },
+            body: JSON.stringify({
+              url: uploadData.url,
+              _ApplicationId: 'opensign',
+              _ClientVersion: 'js6.1.1',
+              _InstallationId: '5b57e02d-5015-4c69-bede-06310ad8bae9',
+              _SessionToken: localStorage.getItem('opensign_session_token') || ''
+            }),
+          })
+
+          if (!fileUploadResponse.ok) {
+            const errorText = await fileUploadResponse.text()
+            console.error('[Templates Store] FileUpload function failed:', errorText)
+            throw new Error(`FileUpload failed: ${fileUploadResponse.status} - ${errorText}`)
+          }
+
+          const fileUploadData = await fileUploadResponse.json()
+          console.log('[Templates Store] Got signed URL:', fileUploadData)
+
+          if (!fileUploadData.result?.url) {
+            throw new Error('FileUpload failed - no signed URL returned')
           }
 
           set({ uploadProgress: 100 })
 
-          const fileUrl = uploadData.result.url
+          const fileUrl = fileUploadData.result.url
 
           // Create a new template with the uploaded file
           if (metadata.name && fileUrl) {

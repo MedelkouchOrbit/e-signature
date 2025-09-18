@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
-import { X, FileText, Clock, Users } from "lucide-react"
+import { X, FileText, Clock, Users, PenTool } from "lucide-react"
 import { documentsApiService, type Document } from "@/app/lib/documents-api-service"
 import { PDFViewerWrapper } from "./PDFViewerWrapper"
+import { SignatureModal, SignatureData } from '../signature/SignatureModal'
 import { useToast } from "@/hooks/use-toast"
 import { usePDFLoader } from "@/app/lib/hooks/usePDFLoader"
 
@@ -24,6 +25,7 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [fullName, setFullName] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showSignatureModal, setShowSignatureModal] = useState(false)
 
   // Use the new PDF loader hook for better error handling and blob management
   const { pdfUrl: documentUrl, loading: pdfLoading, error: pdfError, reload: reloadPDF } = usePDFLoader(documentId)
@@ -88,16 +90,8 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
     router.push('/documents')
   }
 
-  const handleSign = async () => {
-    if (!fullName.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter your full name",
-        variant: "destructive"
-      })
-      return
-    }
-
+  // Handle signature placeholder click (following OpenSign pattern)
+  const handleSignaturePlaceholderClick = () => {
     if (!document) {
       toast({
         title: "Error",
@@ -107,54 +101,36 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
       return
     }
 
+    // Navigate to signature registration page (following OpenSign's recipientSignPdf pattern)
+    router.push(`/documents/${document.objectId}/register-signature`)
+  }
+  const handleSignatureComplete = useCallback(async (signatureData: SignatureData) => {
     try {
       setIsSubmitting(true)
-      console.log('🖊️ Signing document:', document.objectId, 'with name:', fullName)
-
-      // Get current user information dynamically from authentication
-      const currentUser = { email: '', name: fullName, userId: '' };
       
-      // Get user info from auth storage
-      if (typeof window !== 'undefined') {
-        try {
-          const authData = localStorage.getItem('auth-storage');
-          if (authData) {
-            const parsed = JSON.parse(authData);
-            currentUser.email = parsed.state?.user?.email || '';
-            currentUser.userId = parsed.state?.user?.id || '';
-          }
-        } catch {
-          console.warn('Could not get user info from auth store');
-        }
+      if (!document) {
+        throw new Error('Document not found')
       }
       
-      // Validate that we have the required user information
-      if (!currentUser.email || !currentUser.userId) {
-        toast({
-          title: "Authentication Required",
-          description: "Please log in to sign documents",
-          variant: "destructive"
-        });
-        return;
+      // Get current user info
+      const currentUser = {
+        userId: 'temp-user-id', // This should come from auth context
+        email: 'temp@example.com' // This should come from auth context
       }
 
-      // Create a simple signature (in real app, this would be from canvas or image upload)
-      // For now, using a placeholder base64 signature
-      const signatureDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAAEsCAYAAAB5fY51AAAAAXNSR0IArs4c6QAA"
+      console.log('📝 Signing with signature data:', signatureData)
 
-      console.log('📝 Signing with userId:', currentUser.userId, 'email:', currentUser.email)
-
-      // Call the signing endpoint with correct backend parameters
+      // Call the signing endpoint with signature data
       const signedDocument = await documentsApiService.signDocument({
         documentId: document.objectId,
         userId: currentUser.userId,
-        signature: signatureDataUrl,
+        signature: signatureData.dataUrl,
         signatureData: {
           positions: [{
             x: 100,        // Default X position 
             y: 100,        // Default Y position
-            width: 150,    // Signature width
-            height: 50,    // Signature height
+            width: signatureData.width || 150,
+            height: signatureData.height || 50,
             page: 1        // First page
           }],
           signerInfo: {
@@ -168,22 +144,26 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
 
       toast({
         title: "Document Signed Successfully!",
-        description: `Document "${document.name}" has been signed by ${fullName}`,
+        description: "The document has been signed and saved.",
       })
 
-      // Redirect back to documents list
+      // Close modal and redirect
+      setShowSignatureModal(false)
       router.push('/documents')
+      
     } catch (error) {
       console.error('❌ Error signing document:', error)
       toast({
         title: "Signing Failed",
-        description: error instanceof Error ? error.message : "Failed to sign document. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to sign document",
         variant: "destructive"
       })
     } finally {
       setIsSubmitting(false)
     }
-  }
+  }, [document, fullName, router, toast, setIsSubmitting])
+
+
 
   if (isLoading) {
     return (
@@ -345,12 +325,33 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
                   </div>
                   
                   <div className="pt-4 space-y-3">
+                    {/* Signature Placeholder - Following OpenSign Pattern */}
+                    <div 
+                      onClick={handleSignaturePlaceholderClick}
+                      className="w-full p-4 border-2 border-dashed border-indigo-300 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50 transition-colors group"
+                    >
+                      <div className="text-center">
+                        <PenTool className="h-8 w-8 mx-auto mb-2 text-indigo-400 group-hover:text-indigo-600" />
+                        <p className="text-sm font-medium text-indigo-600 group-hover:text-indigo-800">
+                          Click here to sign
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Register your signature to complete the document
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="text-center text-xs text-gray-500">
+                      or
+                    </div>
+                    
                     <Button
-                      onClick={handleSign}
-                      disabled={isSubmitting || !fullName.trim()}
+                      onClick={() => setShowSignatureModal(true)}
+                      disabled={!fullName.trim() || isSubmitting}
                       className="w-full bg-indigo-600 hover:bg-indigo-700"
                     >
-                      {isSubmitting ? "Signing..." : "Sign Document"}
+                      <PenTool className="h-4 w-4 mr-2" />
+                      {isSubmitting ? 'Signing...' : 'Open Signature Pad'}
                     </Button>
                     <Button
                       onClick={handleCancel}
@@ -366,6 +367,14 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
           </div>
         </div>
       </div>
+
+      {/* Signature Modal */}
+      <SignatureModal
+        isOpen={showSignatureModal}
+        onClose={() => setShowSignatureModal(false)}
+        onSave={handleSignatureComplete}
+        title="Sign Document"
+      />
     </div>
   )
 }

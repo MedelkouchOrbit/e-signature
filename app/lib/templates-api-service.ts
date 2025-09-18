@@ -78,6 +78,7 @@ interface OpenSignTemplate {
   CreatedBy?: { objectId: string }
   ExtUserPtr?: { objectId: string }
   Placeholders?: OpenSignPlaceholder[]
+  Signers?: OpenSignSigner[]
   SendinOrder?: boolean
   IsEnableOTP?: boolean
   IsTourEnabled?: boolean
@@ -87,6 +88,17 @@ interface OpenSignTemplate {
   RedirectUrl?: string
   Bcc?: { Email: string }[]
   AllowModifications?: boolean
+}
+
+interface OpenSignSigner {
+  objectId: string
+  Name: string
+  Email: string
+  createdAt?: string
+  updatedAt?: string
+  UserRole?: string
+  IsDeleted?: boolean
+  ACL?: Record<string, unknown>
 }
 
 interface OpenSignPlaceholder {
@@ -242,18 +254,27 @@ function transformOpenSignTemplate(data: Record<string, unknown>): Template {
   // Type assertion with proper checking
   const openSignTemplate = data as unknown as OpenSignTemplate
   
-  const signers: TemplateSigner[] = (openSignTemplate.Placeholders as unknown[] || []).map((placeholder: unknown, index: number) => {
-    const p = placeholder as Record<string, unknown>
+  // Debug logging
+  console.log('Transform - Input data keys:', Object.keys(data))
+  console.log('Transform - Signers array:', openSignTemplate.Signers)
+  
+  // Extract signers from the Signers array (not Placeholders)
+  const signersArray = openSignTemplate.Signers as unknown[] || []
+  const signers: TemplateSigner[] = signersArray.map((signer: unknown, index: number) => {
+    const s = signer as Record<string, unknown>
+    console.log('Transform - Processing signer:', s)
     return {
-      id: (p.Id || p.objectId) as string,
-      role: (p.Role as string) || `Role ${index + 1}`,
-      name: (p.name as string) || '',
-      email: (p.email as string) || '',
-      color: (p.blockColor as string) || getSignerColor(index),
+      id: (s.objectId as string) || `signer-${index}`,
+      role: 'signer', // Default role, can be enhanced from Placeholders if needed
+      name: (s.Name as string) || '',
+      email: (s.Email as string) || '',
+      color: getSignerColor(index),
       order: index + 1,
       status: 'pending' as const
     }
   })
+  
+  console.log('Transform - Final signers:', signers)
 
   const fields: TemplateField[] = []
   
