@@ -1941,14 +1941,27 @@ function transformOpenSignDocumentFromReport(reportResult: Record<string, unknow
     });
   }
 
-  // Extract creator information
+  // Extract creator information - prioritize ExtUserPtr over CreatedBy
   let createdBy = {
     id: '',
     name: 'Unknown User',
     email: ''
   };
 
-  if (reportResult.CreatedBy) {
+  // First try to get sender info from ExtUserPtr (this is the actual sender/document creator)
+  if (reportResult.ExtUserPtr) {
+    if (typeof reportResult.ExtUserPtr === 'object' && reportResult.ExtUserPtr !== null) {
+      const extUser = reportResult.ExtUserPtr as Record<string, unknown>;
+      createdBy = {
+        id: extUser.objectId as string || extUser.id as string || '',
+        name: extUser.Name as string || extUser.name as string || 'Unknown User',
+        email: extUser.Email as string || extUser.email as string || ''
+      };
+      console.log('📧 Extracted sender from ExtUserPtr:', createdBy);
+    }
+  }
+  // Fallback to CreatedBy if ExtUserPtr is not available
+  else if (reportResult.CreatedBy) {
     if (typeof reportResult.CreatedBy === 'object' && reportResult.CreatedBy !== null) {
       const creator = reportResult.CreatedBy as Record<string, unknown>;
       createdBy = {
@@ -1956,7 +1969,10 @@ function transformOpenSignDocumentFromReport(reportResult: Record<string, unknow
         name: creator.Name as string || creator.name as string || 'Unknown User',
         email: creator.Email as string || creator.email as string || ''
       };
+      console.log('📧 Extracted sender from CreatedBy (fallback):', createdBy);
     }
+  } else {
+    console.warn('⚠️ No ExtUserPtr or CreatedBy found in report result');
   }
 
   // Build the document object
