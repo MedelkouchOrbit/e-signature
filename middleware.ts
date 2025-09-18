@@ -84,16 +84,40 @@ export default async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl)
     }
     
-    // Optional: Validate token format (basic validation)
-    if (sessionToken.length < 10) {
+    // Basic token format validation (more thorough validation happens in AuthGuard)
+    if (sessionToken.length < 10 || !sessionToken.startsWith('r:')) {
       console.log('❌ Middleware: BLOCKING access - invalid token format')
       const loginUrl = new URL('/en/auth/login', request.url)
-      return NextResponse.redirect(loginUrl)
+      // Clear the invalid token
+      const response = NextResponse.redirect(loginUrl)
+      response.cookies.delete('opensign_session_token')
+      return response
     }
     
-    console.log('✅ Middleware: Allowing access to PRIVATE route - valid session token found')
+    console.log('✅ Middleware: Allowing access to PRIVATE route - session token format valid (AuthGuard will validate expiry)')
   } else {
-    console.log('✅ Middleware: Allowing access to PUBLIC route:', pathname, '(without locale:', pathWithoutLocale, ')')
+    console.log('✅ Middleware: Checking PUBLIC route:', pathname, '(without locale:', pathWithoutLocale, ')')
+    
+    // 🚫 BLOCK AUTH PAGES if user has valid session token
+    const authPages = ['/auth/login', '/auth/signup', '/auth/reset-password']
+    const isAuthPage = authPages.includes(pathWithoutLocale)
+    
+    if (isAuthPage) {
+      const sessionToken = request.cookies.get('opensign_session_token')?.value
+      
+      if (sessionToken && sessionToken.trim() !== '' && sessionToken.startsWith('r:') && sessionToken.length >= 10) {
+        console.log('� Middleware: BLOCKING access to auth page - user has valid session token')
+        console.log('🔄 Middleware: Redirecting authenticated user to dashboard')
+        
+        // Redirect to dashboard instead of allowing access to auth pages
+        const dashboardUrl = new URL('/en/dashboard', request.url)
+        return NextResponse.redirect(dashboardUrl)
+      } else {
+        console.log('✅ Middleware: Allowing access to auth page - no valid session token')
+      }
+    } else {
+      console.log('✅ Middleware: Allowing access to non-auth public route')
+    }
   }
   
   // Handle internationalization routing

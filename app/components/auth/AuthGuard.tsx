@@ -47,17 +47,27 @@ export function AuthGuard({ children }: AuthGuardProps) {
     
     const sessionToken = openSignApiService.getSessionToken()
     
-    if (!sessionToken) {
+    if (!sessionToken || sessionToken.trim() === '') {
+      console.log("AuthGuard: No session token to validate")
+      return false
+    }
+
+    // Basic format validation for OpenSign tokens
+    if (!sessionToken.startsWith('r:') || sessionToken.length < 10) {
+      console.log("AuthGuard: Invalid token format")
+      openSignApiService.clearSessionToken()
       return false
     }
 
     try {
+      console.log("AuthGuard: Making API call to validate session...")
       // Try to verify session with OpenSign API using getUserDetails
-      await openSignApiService.callFunction('getUserDetails', {})
+      const result = await openSignApiService.callFunction('getUserDetails', {})
+      console.log("AuthGuard: Session validation successful", result)
       return true
     } catch (error) {
       console.log("AuthGuard: Session validation failed, token may be expired:", error)
-      // Clear expired token
+      // Clear expired token immediately
       openSignApiService.clearSessionToken()
       return false
     }
@@ -93,21 +103,23 @@ export function AuthGuard({ children }: AuthGuardProps) {
         return
       }
 
-      // If not authenticated in store but we have a token, validate it
-      if (!isAuthenticated) {
-        setIsValidating(true)
-        validateSession().then((isValid) => {
-          setIsValidating(false)
-          if (!isValid) {
-            console.log("AuthGuard: Session validation failed, redirecting to login.")
-            handleAuthFailure()
-          }
-        }).catch(() => {
-          setIsValidating(false)
-          console.log("AuthGuard: Session validation error, redirecting to login.")
+      // Always validate the token, even if store says we're authenticated
+      // This ensures we catch expired tokens
+      console.log("AuthGuard: Validating session token...")
+      setIsValidating(true)
+      validateSession().then((isValid) => {
+        setIsValidating(false)
+        if (!isValid) {
+          console.log("AuthGuard: Session validation failed, redirecting to login.")
           handleAuthFailure()
-        })
-      }
+        } else {
+          console.log("AuthGuard: Session validation successful")
+        }
+      }).catch((error) => {
+        setIsValidating(false)
+        console.log("AuthGuard: Session validation error:", error, "- redirecting to login.")
+        handleAuthFailure()
+      })
     }
   }, [isAuthenticated, isPublicPath, pathname, router, logout, handleAuthFailure, validateSession, hasValidToken, isClient])
 
