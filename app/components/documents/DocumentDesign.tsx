@@ -10,7 +10,7 @@ import { Signature, Download, Share2, Users, Clock, FileText } from "lucide-reac
 import { cn } from "@/lib/utils"
 import { useDocumentsStore, type Document } from "@/app/lib/documents-store"
 import { useToast } from "@/hooks/use-toast"
-import { PDFViewerWrapper } from "./PDFViewerWrapper"
+import { PDFViewer } from "./PDFViewer"
 import { addSignaturesToPDF, uploadSignedPDF } from "@/app/lib/pdf-signature-utils"
 
 interface DocumentDesignProps {
@@ -162,13 +162,20 @@ export function DocumentDesign({
             </CardHeader>
             
             <CardContent>
-              <PDFViewerWrapper 
+              <PDFViewer 
                 fileUrl={fileUrl}
-                signatures={signaturePositions}
-                onSignatureAdd={(signature: SignaturePosition) => setSignaturePositions([...signaturePositions, signature])}
-                onSignatureRemove={(signatureId: string) => 
-                  setSignaturePositions(signaturePositions.filter(sig => sig.id !== signatureId))
-                }
+                signaturePositions={signaturePositions}
+                onSignaturePositionClick={(x: number, y: number, page: number) => {
+                  const newPosition: SignaturePosition = {
+                    x,
+                    y,
+                    width: 200,
+                    height: 80,
+                    page,
+                    id: `signature_${Date.now()}`
+                  }
+                  setSignaturePositions([...signaturePositions, newPosition])
+                }}
                 className="h-full"
               />
             </CardContent>

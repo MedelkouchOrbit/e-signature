@@ -157,6 +157,8 @@ export const openSignApiService = {
       _ApplicationId: "opensign",
       _ClientVersion: "js6.1.1",
       _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+      // Add _SessionToken to the request body as requested
+      ...(sessionToken && { _SessionToken: sessionToken }),
       // Add _method: "GET" for Parse REST API endpoints
       ...(isParseRestAPI && { _method: "GET" })
     };
@@ -201,7 +203,9 @@ export const openSignApiService = {
       ...data,
       _ApplicationId: "opensign",
       _ClientVersion: "js6.1.1",
-      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac"
+      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+      // Add _SessionToken to the request body as requested
+      ...(sessionToken && { _SessionToken: sessionToken })
     };
     
     console.log(`[OpenSign] POST ${baseUrl}/${path}`);
@@ -245,7 +249,9 @@ export const openSignApiService = {
       _method: "PUT",
       _ApplicationId: "opensign",
       _ClientVersion: "js6.1.1",
-      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac"
+      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+      // Add _SessionToken to the request body as requested
+      ...(sessionToken && { _SessionToken: sessionToken })
     };
     
     console.log(`[OpenSign] POST ${baseUrl}/${path} (with _method: PUT)`);

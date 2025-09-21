@@ -1099,15 +1099,18 @@ export default function CreateTemplatePage() {
               {/* Signature Canvas */}
               <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
                 {signatureType === 'draw' && (
-                  <SignatureCanvas
-                    ref={sigCanvasRef}
-                    penColor="blue"
-                    canvasProps={{
-                      width: 500,
-                      height: 200,
-                      className: 'sigCanvas border rounded bg-white'
-                    }}
-                  />
+                  <>
+                    <SignatureCanvas
+                      // @ts-expect-error - Dynamic import ref issue in backup file
+                      ref={sigCanvasRef}
+                      penColor="blue"
+                      canvasProps={{
+                        width: 500,
+                        height: 200,
+                        className: 'sigCanvas border rounded bg-white'
+                      }}
+                    />
+                  </>
                 )}
                 
                 {signatureType === 'type' && (

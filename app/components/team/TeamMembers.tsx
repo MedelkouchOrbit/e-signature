@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { teamsApiService, type OpenSignTeamMember } from "@/app/lib/templates-api-service"
-import { AddTeamMemberModal } from "@/app/[locale]/team/components/AddTeamMemberModal"
+import { AddTeamMemberModal } from "@/app/components/team/AddTeamMemberModal"
 import { useToast } from "@/hooks/use-toast"
 
 export function TeamMembers() {

@@ -19,7 +19,7 @@ import {
   PenTool
 } from 'lucide-react'
 import { documentsApiService } from '@/app/lib/documents-api-service'
-import { PDFViewerWrapper } from '@/app/components/documents/PDFViewerWrapper'
+import { PDFViewer } from '@/app/components/documents/PDFViewer'
 import { SignatureModal, SignatureData } from '@/app/components/signature/SignatureModal'
 
 interface SignatureRegistrationPageProps {
@@ -387,7 +387,7 @@ export default function SignatureRegistrationPage({ params }: SignatureRegistrat
               </CardHeader>
               <CardContent className="p-0 h-full">
                 <div className="h-[calc(100%-4rem)] border-t">
-                  <PDFViewerWrapper
+                  <PDFViewer
                     fileUrl={document.URL}
                     className="w-full h-full"
                   />

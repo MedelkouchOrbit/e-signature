@@ -942,31 +942,6 @@ export function SuperAdminManagement() {
             }
           }}
           organizationMembers={selectedOrgForTeam.users || []}
-          organizationId={selectedOrgForTeam.objectId}
-          organizationName={selectedOrgForTeam.Name}
-          onAddMember={async (userData) => {
-            try {
-              await SuperAdminApiService.createUser({
-                name: userData.name,
-                email: userData.email,
-                password: userData.password,
-                role: userData.role,
-                company: userData.company,
-                organizationId: selectedOrgForTeam.objectId
-              })
-              
-              toast({
-                title: "Success",
-                description: `User "${userData.name}" has been added to ${selectedOrgForTeam.Name}.`
-              })
-              
-              // Reload data to refresh the organization members list
-              await loadSuperAdminData()
-            } catch (error) {
-              console.error('Error adding user:', error)
-              throw error
-            }
-          }}
         />
       )}
 

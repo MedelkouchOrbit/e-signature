@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ArrowLeft, Search, Users, Check, X } from "lucide-react"
 import { toast } from "sonner"
+import type { OpenSignDocument, OpenSignDocumentsResponse, OpenSignPlaceholder, OpenSignSigner, OpenSignApiResponse } from "@/types/shared"
 
 interface Signer {
   id: string
@@ -148,29 +149,25 @@ export default function EditBulkSendPage() {
 
       // Get all bulk send documents that need this signer
       const { openSignApiService } = await import("@/app/lib/api-service")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const documentsResponse = await openSignApiService.get('classes/contracts_Document?include=Placeholders,Signers&limit=1000') as any
+      const documentsResponse = await openSignApiService.get('classes/contracts_Document?include=Placeholders,Signers&limit=1000') as OpenSignDocumentsResponse
       const documents = documentsResponse?.results || []
       
       console.log(`📋 Found ${documents.length} total documents`)
       
       // Filter to bulk send documents that need this signer
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const bulkSendDocs = documents.filter((doc: any) => {
+      const bulkSendDocs = documents.filter((doc: OpenSignDocument) => {
         const isBulkSend = doc.Name?.includes('Bulk Send:')
-        const hasPlaceholders = doc.Placeholders?.length > 0
+        const hasPlaceholders = doc.Placeholders && doc.Placeholders.length > 0
         
         // Log placeholder details for debugging
         if (isBulkSend && hasPlaceholders) {
           console.log(`🔍 Checking placeholders for document: ${doc.Name}`)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          doc.Placeholders.forEach((p: any, index: number) => {
+          doc.Placeholders?.forEach((p: OpenSignPlaceholder, index: number) => {
             console.log(`  Placeholder ${index}: email="${p.email}" signerObjId="${p.signerObjId}" (looking for: ${member.Email})`)
           })
         }
         
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const needsSigner = doc.Placeholders?.some((p: any) => {
+        const needsSigner = doc.Placeholders?.some((p: OpenSignPlaceholder) => {
           const emailMatch = p.email === member.Email
           const noSignerAssigned = (!p.signerObjId || p.signerObjId === '')
           console.log(`    Email match: ${emailMatch}, No signer: ${noSignerAssigned}`)
@@ -185,15 +182,12 @@ export default function EditBulkSendPage() {
       console.log(`🎯 Found ${bulkSendDocs.length} bulk send documents that need signer ${member.Email}`)
 
       // If no documents found, also try to find documents with empty placeholders we can assign to
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let fallbackDocs: any[] = []
+      let fallbackDocs: OpenSignDocument[] = []
       if (bulkSendDocs.length === 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fallbackDocs = documents.filter((doc: any) => {
+        fallbackDocs = documents.filter((doc: OpenSignDocument) => {
           const isBulkSend = doc.Name?.includes('Bulk Send:')
-          const hasPlaceholders = doc.Placeholders?.length > 0
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const hasEmptyPlaceholder = doc.Placeholders?.some((p: any) => 
+          const hasPlaceholders = doc.Placeholders && doc.Placeholders.length > 0
+          const hasEmptyPlaceholder = doc.Placeholders?.some((p: OpenSignPlaceholder) => 
             !p.email || p.email === '' || (!p.signerObjId || p.signerObjId === '')
           )
           
@@ -212,8 +206,7 @@ export default function EditBulkSendPage() {
       if (documentsToProcess.length === 0) {
         // Check if we should create a test bulk send document
         console.log('❓ No bulk send documents found. Available documents:')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        documents.slice(0, 3).forEach((doc: any) => {
+        documents.slice(0, 3).forEach((doc: OpenSignDocument) => {
           console.log(`  - ${doc.objectId}: ${doc.Name} (Placeholders: ${doc.Placeholders?.length || 0})`)
         })
         
@@ -235,8 +228,7 @@ export default function EditBulkSendPage() {
             Name: member.Name,
             Email: member.Email,
             Phone: '' // Default phone
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          }) as any
+          }) as { objectId: string }
 
           if (!contactResponse?.objectId) {
             throw new Error('Failed to create contact')
@@ -247,8 +239,7 @@ export default function EditBulkSendPage() {
 
           // Step 2: Update document placeholders with signerObjId
           const currentPlaceholders = doc.Placeholders || []
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const updatedPlaceholders = currentPlaceholders.map((placeholder: any) => {
+          const updatedPlaceholders = currentPlaceholders.map((placeholder: OpenSignPlaceholder) => {
             // Match by email OR use the first empty placeholder
             const isTargetPlaceholder = 
               (placeholder.email === member.Email && (!placeholder.signerObjId || placeholder.signerObjId === '')) ||
@@ -336,17 +327,14 @@ export default function EditBulkSendPage() {
 
       // Get all bulk send documents that have this signer
       const { openSignApiService } = await import("@/app/lib/api-service")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const documentsResponse = await openSignApiService.get('classes/contracts_Document?include=Placeholders,Signers&limit=1000') as any
+      const documentsResponse = await openSignApiService.get('classes/contracts_Document?include=Placeholders,Signers&limit=1000') as OpenSignApiResponse<OpenSignDocument>
       const documents = documentsResponse?.results || []
       
       // Filter to bulk send documents that have this signer assigned
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const bulkSendDocs = documents.filter((doc: any) => 
+      const bulkSendDocs = documents.filter((doc: OpenSignDocument) => 
         doc.Name?.includes('Bulk Send:') && 
-        doc.Placeholders?.length > 0 &&
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        doc.Placeholders?.some((p: any) => 
+        doc.Placeholders && doc.Placeholders.length > 0 &&
+        doc.Placeholders.some((p: OpenSignPlaceholder) => 
           p.email === member.Email && p.signerObjId && p.signerObjId !== ''
         )
       )
@@ -364,16 +352,15 @@ export default function EditBulkSendPage() {
       for (const doc of bulkSendDocs) {
         try {
           // Find the placeholder with this signer's email
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const placeholderIndex = doc.Placeholders.findIndex((p: any) => p.email === member.Email)
+          const placeholderIndex = doc.Placeholders?.findIndex((p: OpenSignPlaceholder) => p.email === member.Email) ?? -1
           
-          if (placeholderIndex !== -1) {
+          if (placeholderIndex !== -1 && doc.Placeholders) {
             // Clear the signer assignment from placeholder
             const updatedPlaceholders = [...doc.Placeholders]
             updatedPlaceholders[placeholderIndex] = {
               ...updatedPlaceholders[placeholderIndex],
               signerObjId: '',
-              signerPtr: null
+              signerPtr: undefined
             }
 
             // Update the document
@@ -383,8 +370,7 @@ export default function EditBulkSendPage() {
 
             // Also remove from Signers array if present
             if (doc.Signers && doc.Signers.length > 0) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const updatedSigners = doc.Signers.filter((s: any) => s.Email !== member.Email)
+              const updatedSigners = doc.Signers.filter((s: OpenSignSigner) => s.Email !== member.Email)
               await openSignApiService.put(`classes/contracts_Document/${doc.objectId}`, {
                 Signers: updatedSigners
               })
@@ -430,17 +416,15 @@ export default function EditBulkSendPage() {
 
       // Get all bulk send documents that have this signer
       const { openSignApiService } = await import("@/app/lib/api-service")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const documentsResponse = await openSignApiService.get('classes/contracts_Document?include=Placeholders,Signers&limit=1000') as any
+      const documentsResponse = await openSignApiService.get('classes/contracts_Document?include=Placeholders,Signers&limit=1000') as OpenSignApiResponse<OpenSignDocument>
       const documents = documentsResponse?.results || []
       
       // Filter to bulk send documents that have this signer assigned
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const bulkSendDocs = documents.filter((doc: any) => 
+      const bulkSendDocs = documents.filter((doc: OpenSignDocument) => 
         doc.Name?.includes('Bulk Send:') && 
-        doc.Placeholders?.length > 0 &&
+        doc.Placeholders && doc.Placeholders.length > 0 &&
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        doc.Placeholders?.some((p: any) => 
+        doc.Placeholders.some((p: any) => 
           p.email === signerToRemove.email && p.signerObjId && p.signerObjId !== ''
         )
       )
@@ -450,16 +434,15 @@ export default function EditBulkSendPage() {
       for (const doc of bulkSendDocs) {
         try {
           // Find the placeholder with this signer's email
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const placeholderIndex = doc.Placeholders.findIndex((p: any) => p.email === signerToRemove.email)
+          const placeholderIndex = doc.Placeholders?.findIndex((p: OpenSignPlaceholder) => p.email === signerToRemove.email) ?? -1
           
-          if (placeholderIndex !== -1) {
+          if (placeholderIndex !== -1 && doc.Placeholders) {
             // Clear the signer assignment from placeholder
             const updatedPlaceholders = [...doc.Placeholders]
             updatedPlaceholders[placeholderIndex] = {
               ...updatedPlaceholders[placeholderIndex],
               signerObjId: '',
-              signerPtr: null
+              signerPtr: undefined
             }
 
             // Update the document

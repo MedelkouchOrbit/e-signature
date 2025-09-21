@@ -1,9 +1,9 @@
 "use client"
 
 import { AuthGuard } from "@/app/components/auth/AuthGuard"
-import { TeamsAndMembers } from "./components/TeamsAndMembers"
-import { Contacts } from "./components/Contacts"
-import { SuperAdminManagement } from "./components/SuperAdminManagement"
+import { TeamsAndMembers } from "@/app/components/team/TeamsAndMembers"
+import { Contacts } from "@/app/components/team/Contacts"
+import { SuperAdminManagement } from "@/app/components/team/SuperAdminManagement"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Building2, Contact, Crown } from "lucide-react"
 import { useState, useEffect } from "react"
@@ -34,7 +34,8 @@ export default function TeamPage() {
         const payload = {
           "_ApplicationId": "opensign",
           "_ClientVersion": "js6.1.1", 
-          "_InstallationId": "5b57e02d-5015-4c69-bede-06310ad8bae9"
+          "_InstallationId": "5b57e02d-5015-4c69-bede-06310ad8bae9",
+          "_SessionToken": sessionToken
         }
         
         // callFunction will automatically add _SessionToken to payload

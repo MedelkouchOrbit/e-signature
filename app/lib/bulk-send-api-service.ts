@@ -43,6 +43,41 @@ export interface CreateBulkSendRequest {
   message?: string
 }
 
+// OpenSign API Response interface
+interface OpenSignApiResponse<T = unknown> {
+  results: T[]
+  count?: number
+}
+
+// OpenSign Placeholder interface
+interface OpenSignPlaceholder {
+  Id?: string
+  email?: string
+  signerObjId?: string
+  signerPtr?: {
+    __type: string
+    className: string
+    objectId: string
+  }
+  placeHolder?: Array<{
+    pageDetails?: {
+      pageNumber: number
+      Height: number
+      Width: number
+    }
+    pos?: {
+      x: number
+      y: number
+    }
+    type?: string
+    options?: {
+      name: string
+      status: string
+      defaultValue?: string
+    }
+  }>
+}
+
 // OpenSign Template interfaces (from contracts_Template class)
 interface OpenSignTemplate {
   objectId: string
@@ -52,7 +87,7 @@ interface OpenSignTemplate {
   Description?: string
   Signers?: Record<string, unknown>[]
   IsArchive?: boolean
-  Placeholders?: Record<string, unknown>[]
+  Placeholders?: OpenSignPlaceholder[]
   Type?: string
   CreatedBy?: Record<string, unknown>
   ExtUserPtr?: Record<string, unknown>
@@ -67,7 +102,7 @@ interface OpenSignDocument {
   URL: string
   Note?: string
   Signers?: Record<string, unknown>[]
-  Placeholders?: Record<string, unknown>[]
+  Placeholders?: OpenSignPlaceholder[]
   IsCompleted?: boolean
   IsDeclined?: boolean
   IsSigned?: boolean
@@ -404,7 +439,7 @@ class BulkSendApiService {
 
       const documentsToCreate = data.signers.map((signer) => {
         // Update placeholders with signer information
-        const updatedPlaceholders = template.Placeholders?.map((placeholder: Record<string, unknown>) => ({
+        const updatedPlaceholders = template.Placeholders?.map((placeholder: OpenSignPlaceholder) => ({
           ...placeholder,
           email: signer.email,
           signerPtr: {
@@ -527,17 +562,14 @@ class BulkSendApiService {
       console.log('🚀 Starting bulk send signer assignment for:', bulkSendId)
 
       // Get all documents
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const documentsResponse = await openSignApiService.get('classes/contracts_Document?include=Placeholders,Signers&limit=1000') as any
+      const documentsResponse = await openSignApiService.get('classes/contracts_Document?include=Placeholders,Signers&limit=1000') as OpenSignApiResponse<OpenSignDocument>
       const documents = documentsResponse?.results || []
       
       // Filter to bulk send documents created for this bulk send
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const bulkSendDocs = documents.filter((doc: any) => 
+      const bulkSendDocs = documents.filter((doc: OpenSignDocument) => 
         doc.Name?.includes('Bulk Send:') && 
-        doc.Placeholders?.length > 0 &&
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        doc.Placeholders?.some((p: any) => p.email && (!p.signerObjId || p.signerObjId === ''))
+        doc.Placeholders && doc.Placeholders.length > 0 &&
+        doc.Placeholders?.some((p: OpenSignPlaceholder) => p.email && (!p.signerObjId || p.signerObjId === ''))
       )
 
       if (bulkSendDocs.length === 0) {

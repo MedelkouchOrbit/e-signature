@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { X, FileText, Clock, Users, PenTool } from "lucide-react"
 import { documentsApiService, type Document } from "@/app/lib/documents-api-service"
-import { PDFViewerWrapper } from "./PDFViewerWrapper"
+import { PDFViewer } from "./PDFViewer"
 import { SignatureModal, SignatureData } from '../signature/SignatureModal'
 import { useToast } from "@/hooks/use-toast"
 import { usePDFLoader } from "@/app/lib/hooks/usePDFLoader"
@@ -230,7 +230,7 @@ export function SimpleDocumentSign({ documentId }: SimpleDocumentSignProps) {
                 
                 {documentUrl ? (
                   <div className="border rounded-lg overflow-hidden" style={{ height: '600px' }}>
-                    <PDFViewerWrapper 
+                    <PDFViewer 
                       fileUrl={documentUrl}
                       className="w-full h-full"
                     />
