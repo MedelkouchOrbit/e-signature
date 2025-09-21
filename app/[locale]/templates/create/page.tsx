@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { AuthGuard } from '@/app/components/auth/AuthGuard'
-import { CheckCircle, FileText, X, PenTool, Type, Calendar, Mail, User, Building, RadioIcon, Check, Minus, Move, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
+import { CheckCircle, FileText, X, PenTool, Type, Calendar, Mail, User, Building, RadioIcon, Check, Minus, Move, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TemplateReviewStep } from '@/app/components/templates/TemplateReviewStep'
 import { SaveTemplatePopup } from '@/app/components/templates/SaveTemplatePopup'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 
 // Dynamic imports for PDF components to avoid SSR issues
 const Document = dynamic(() => import('react-pdf').then(mod => ({ default: mod.Document })), { ssr: false })
@@ -35,7 +36,7 @@ interface SignatureCanvasRef {
   clear: () => void
   toDataURL: () => string
   isEmpty: () => boolean
-  getTrimmedCanvas: () => HTMLCanvasElement
+  getCanvas: () => HTMLCanvasElement
 }
 
 // Dynamically import SignatureCanvas to avoid SSR issues  
@@ -240,6 +241,20 @@ export default function CreateTemplatePage() {
   const [showSendConfirmationPopup, setShowSendConfirmationPopup] = useState(false)
   const [signersList, setSignersList] = useState<Signer[]>([])
   
+  // New state for signing mode
+  const [signingMode, setSigningMode] = useState<'sign_yourself' | 'add_signers'>('add_signers')
+  const [showSelfSignModal, setShowSelfSignModal] = useState(false)
+  const [selfSignatureData, setSelfSignatureData] = useState<string>('')
+  
+  // User session states
+  const [currentUserId, setCurrentUserId] = useState<string>('')
+  const [extUserId, setExtUserId] = useState<string>('')
+  
+  // New states for self-signing interface in step 2
+  const [selfSignatureType, setSelfSignatureType] = useState<'draw' | 'type' | 'upload'>('draw')
+  const [selfTypedSignature, setSelfTypedSignature] = useState('')
+  const [tenantDetails, setTenantDetails] = useState(null)
+  
   // PDF viewer states
   const [currentPage, setCurrentPage] = useState(1)
   const [numPages, setNumPages] = useState(0)
@@ -289,7 +304,110 @@ export default function CreateTemplatePage() {
     const token = localStorage.getItem('opensign_session_token') || ''
     setSessionToken(token)
     fetchSigners()
+    
+    // Get user information from session token
+    if (token) {
+      fetchUserInfo(token)
+    }
   }, [fetchSigners])
+
+  // Fetch user information from session token
+  const fetchUserInfo = async (token: string) => {
+    try {
+      const response = await fetch('http://94.249.71.89:9000/api/app/users/me', {
+        method: 'POST',
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Content-Type': 'text/plain',
+          'Origin': 'http://94.249.71.89:9000',
+          'Pragma': 'no-cache',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+        },
+        body: JSON.stringify({
+          "_method": "GET",
+          "_ApplicationId": "opensign",
+          "_ClientVersion": "js6.1.1",
+          "_InstallationId": "5b57e02d-5015-4c69-bede-06310ad8bae9",
+          "_SessionToken": token
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('User info fetched:', data)
+        if (data) {
+          // Use the fetched user data or fallback to defaults
+          setCurrentUserId(data.objectId || 'pyNn9ogqBr')
+          setExtUserId(data.ExtUserId || 'ODs8eHFNVW')
+          console.log('User ID set to:', data.objectId || '')
+          console.log('ExtUserId set to:', data.ExtUserId || '')
+        } else {
+          // No user data returned, use fallbacks
+          setCurrentUserId('')
+          setExtUserId('')
+        }
+      } else {
+        console.error('Failed to fetch user info:', response.status, response.statusText)
+        // Fallback to default values if API fails
+        setCurrentUserId('')
+        setExtUserId('')
+      }
+    } catch (error) {
+      console.error('Error fetching user info:', error)
+      // Fallback to default values if API fails
+      setCurrentUserId('')
+      setExtUserId('')
+    }
+  }
+
+  // Fetch tenant details using userId
+  const fetchTenantDetails = useCallback(async (userId: string) => {
+    try {
+      const token = sessionToken || localStorage.getItem('opensign_session_token') || ''
+      const response = await fetch('http://94.249.71.89:9000/api/app/functions/gettenant', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'Content-Type': 'application/json',
+          'X-Parse-Application-Id': 'opensign',
+          'X-Parse-Session-Token': token,
+        },
+        body: JSON.stringify({ 
+          userId: userId,
+          contactId: undefined // Optional parameter
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Tenant details response:', data)
+        
+        if (data.result) {
+          setTenantDetails(data.result)
+          return data.result
+        } else {
+          console.error('No result in tenant details response')
+          return null
+        }
+      } else {
+        console.error('Failed to fetch tenant details:', response.status)
+        return null
+      }
+    } catch (error) {
+      console.error('Error fetching tenant details:', error)
+      return null
+    }
+  }, [sessionToken])
+
+  // Fetch tenant details when currentUserId is available
+  useEffect(() => {
+    if (currentUserId && sessionToken) {
+      fetchTenantDetails(currentUserId)
+    }
+  }, [currentUserId, sessionToken, fetchTenantDetails])
 
   // Search signers when search term changes
   useEffect(() => {
@@ -397,10 +515,28 @@ export default function CreateTemplatePage() {
         required: true
       }
       
-      // Open signer selection modal
-      setTempFieldPlacement(newField)
-      setIsSignerModalOpen(true)
-      setSelectedFieldType(null)
+      if (signingMode === 'sign_yourself') {
+        // For self-signing mode, directly place the field and assign to current user
+        const finalField: FieldPlacement = {
+          ...newField,
+          assignedSigner: currentUserId || 'self' // Use current user ID or 'self' as fallback
+        } as FieldPlacement
+        
+        setFieldPlacements(prev => [...prev, finalField])
+        
+        // If it's a signature field, show signature modal
+        if (selectedFieldType === 'signature') {
+          setSelectedField(finalField)
+          setIsSignatureModalOpen(true)
+        }
+        
+        setSelectedFieldType(null)
+      } else {
+        // For add_signers mode, open signer selection modal
+        setTempFieldPlacement(newField)
+        setIsSignerModalOpen(true)
+        setSelectedFieldType(null)
+      }
     }
   }
 
@@ -427,6 +563,45 @@ export default function CreateTemplatePage() {
       setIsSignatureModalOpen(true)
     }
   }
+
+  // Auto-populate signature modal with Step 2 data for self-signing mode
+  useEffect(() => {
+    if (isSignatureModalOpen && signingMode === 'sign_yourself') {
+      // If we have signature data from Step 2, pre-populate based on the type used
+      if (selfSignatureData) {
+        // If the signature was drawn or uploaded, use draw mode
+        setSignatureType('draw')
+        
+        // Try to load the signature into the canvas
+        if (sigCanvasRef.current) {
+          setTimeout(() => {
+            try {
+              const img = new window.Image()
+              img.onload = () => {
+                if (sigCanvasRef.current) {
+                  const canvas = sigCanvasRef.current.getCanvas()
+                  if (canvas) {
+                    const ctx = canvas.getContext('2d')
+                    if (ctx) {
+                      ctx.clearRect(0, 0, canvas.width, canvas.height)
+                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+                    }
+                  }
+                }
+              }
+              img.src = selfSignatureData
+            } catch (error) {
+              console.log('Could not load Step 2 signature into canvas:', error)
+            }
+          }, 100) // Small delay to ensure canvas is ready
+        }
+      } else if (selfTypedSignature) {
+        // If the signature was typed, use type mode and pre-fill
+        setSignatureType('type')
+        setTypedSignature(selfTypedSignature)
+      }
+    }
+  }, [isSignatureModalOpen, signingMode, selfSignatureData, selfTypedSignature])
 
   // Get document details API call for Step 4
   const getDocumentDetails = async (docId: string) => {
@@ -465,7 +640,7 @@ export default function CreateTemplatePage() {
       // Send mail to each signer
       for (const signer of selectedSigners) {
         const mailPayload = {
-          extUserId: "ODs8eHFNVW",
+          extUserId: extUserId || "ODs8eHFNVW",
           recipient: signer.Email,
           subject: `superadmin has requested you to sign ${templateData.name || 'Document'}`,
           replyto: "email",
@@ -523,12 +698,12 @@ export default function CreateTemplatePage() {
         ExtUserPtr: {
           __type: "Pointer",
           className: "contracts_Users",
-          objectId: "ODs8eHFNVW"
+          objectId: extUserId
         },
         CreatedBy: {
           __type: "Pointer",
           className: "_User",
-          objectId: "pyNn9ogqBr"
+          objectId: currentUserId
         },
         _ApplicationId: "opensign",
         _ClientVersion: "js6.1.1",
@@ -632,6 +807,70 @@ export default function CreateTemplatePage() {
     try {
       const token = sessionToken || localStorage.getItem('opensign_session_token') || ''
       let uploadedFileUrl = templateData.fileUrl
+      let currentTemplateId = templateId
+      
+      // For sign yourself mode, we need to create a template first if it doesn't exist
+      if (signingMode === 'sign_yourself' && !currentTemplateId) {
+        console.log('Creating template for sign yourself mode...')
+        
+        const templateCreateResponse = await fetch('http://94.249.71.89:9000/api/app/classes/contracts_Template', {
+          method: 'POST',
+          headers: {
+            'Accept': '*/*',
+            'Content-Type': 'text/plain',
+            'X-Parse-Application-Id': 'opensign',
+            'X-Parse-Session-Token': token,
+          },
+          body: JSON.stringify({
+            Name: templateData.name || "Self-Sign Template",
+            Description: templateData.description || "Self-signing template",
+            Note: "Self-signing template",
+            Folder: "Others",
+            SignedUrl: "",
+            URL: "",
+            Type: "Template",
+            CreatedBy: {
+              __type: "Pointer",
+              className: "_User",
+              objectId: currentUserId
+            },
+            ExtUserPtr: {
+              __type: "Pointer",
+              className: "contracts_Users",
+              objectId: extUserId
+            },
+            Signers: [],
+            Placeholders: [],
+            SendinOrder: false,
+            AutomaticReminders: false,
+            RemindOnceInEvery: 5,
+            IsEnableOTP: false,
+            AllowModifications: false,
+            IsTourEnabled: true,
+            TimeToCompleteDays: 15,
+            SignatureType: [
+              {"name": "draw", "enabled": true},
+              {"name": "typed", "enabled": true},
+              {"name": "upload", "enabled": true},
+              {"name": "default", "enabled": true}
+            ],
+            NotifyOnSignatures: true,
+            _ApplicationId: "opensign",
+            _ClientVersion: "js6.1.1",
+            _InstallationId: "5b57e02d-5015-4c69-bede-06310ad8bae9",
+            _SessionToken: token
+          })
+        })
+
+        if (!templateCreateResponse.ok) {
+          throw new Error('Failed to create template for self-signing')
+        }
+
+        const templateCreateResult = await templateCreateResponse.json()
+        currentTemplateId = templateCreateResult.objectId
+        setTemplateId(currentTemplateId)
+        console.log('Template created for self-signing:', currentTemplateId)
+      }
       
       // If we have a blob URL, we need to upload it first
       if (templateData.fileUrl?.startsWith('blob:')) {
@@ -654,8 +893,13 @@ export default function CreateTemplatePage() {
           reader.readAsDataURL(blob)
         })
         
-        // Upload file using the base64 data
-        const fileUploadResponse = await fetch(`http://94.249.71.89:9000/api/app/files/${templateId}.pdf`, {
+        // Generate a proper filename instead of using templateId
+        const fileName = templateData.name ? 
+          `${templateData.name.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf` : 
+          `template_${Date.now()}.pdf`
+        
+        // Upload file using the base64 data with proper filename
+        const fileUploadResponse = await fetch(`http://94.249.71.89:9000/api/app/files/${fileName}`, {
           method: 'POST',
           headers: {
             'Accept': '*/*',
@@ -714,11 +958,11 @@ export default function CreateTemplatePage() {
       // Step 2: Update template with placeholders
       const placeholders = formatPlaceholdersForAPI()
       
-      if (!templateId) {
+      if (!currentTemplateId) {
         throw new Error('Template ID not found. Please save template first.')
       }
       
-      const templateUpdateResponse = await fetch(`http://94.249.71.89:9000/api/app/classes/contracts_Template/${templateId}`, {
+      const templateUpdateResponse = await fetch(`http://94.249.71.89:9000/api/app/classes/contracts_Template/${currentTemplateId}`, {
         method: 'PUT',
         headers: {
           'Accept': '*/*',
@@ -786,12 +1030,12 @@ export default function CreateTemplatePage() {
           ExtUserPtr: {
             __type: "Pointer",
             className: "contracts_Users",
-            objectId: "ODs8eHFNVW"
+            objectId: extUserId
           },
           CreatedBy: {
             __type: "Pointer",
             className: "_User",
-            objectId: "pyNn9ogqBr"
+            objectId: currentUserId
           },
           Signers: selectedSigners.map(signer => ({
             __type: "Pointer",
@@ -816,7 +1060,7 @@ export default function CreateTemplatePage() {
           TemplateId: {
             __type: "Pointer",
             className: "contracts_Template",
-            objectId: templateId
+            objectId: currentTemplateId
           }
         })
       })
@@ -849,40 +1093,90 @@ export default function CreateTemplatePage() {
   const handleNext = async () => {
     try {
       if (currentStep === 2) {
-        if (selectedSigners.length === 0) {
-          alert('Please select at least one signer before continuing.')
-          return
+        // Handle self-signing mode
+        if (signingMode === 'sign_yourself') {
+          // Capture signature data based on the selected type
+          let capturedSignature = ''
+          
+          if (selfSignatureType === 'draw' && sigCanvasRef.current) {
+            if (sigCanvasRef.current.isEmpty()) {
+              alert('Please draw your signature before continuing.')
+              return
+            }
+            capturedSignature = sigCanvasRef.current.toDataURL()
+          } else if (selfSignatureType === 'type') {
+            if (!selfTypedSignature.trim()) {
+              alert('Please type your signature before continuing.')
+              return
+            }
+            // Create a simple signature from typed text
+            const canvas = document.createElement('canvas')
+            canvas.width = 300
+            canvas.height = 100
+            const ctx = canvas.getContext('2d')
+            if (ctx) {
+              ctx.font = '36px cursive'
+              ctx.fillStyle = 'black'
+              ctx.textAlign = 'center'
+              ctx.fillText(selfTypedSignature, 150, 60)
+              capturedSignature = canvas.toDataURL()
+            }
+          } else if (selfSignatureType === 'upload') {
+            if (!selfSignatureData) {
+              alert('Please upload your signature before continuing.')
+              return
+            }
+            capturedSignature = selfSignatureData
+          }
+          
+          if (!capturedSignature) {
+            alert('Please provide your signature before continuing.')
+            return
+          }
+          
+          // Save signature data locally for the next step
+          setSelfSignatureData(capturedSignature)
+          
+          console.log('Signature captured for self-signing mode')
         }
         
-        console.log('Saving template...')
-        await saveTemplate()
-        console.log('Template saved successfully!')
+        // Handle add signers mode
+        if (signingMode === 'add_signers') {
+          if (selectedSigners.length === 0) {
+            alert('Please select at least one signer before continuing.')
+            return
+          }
+          
+          console.log('Signers selected for add signers mode')
+        }
       }
       
-      // Step 3: Save field placements and update template
+      // Step 3: Just validate fields are placed - no backend requests
       if (currentStep === 3) {
         if (fieldPlacements.length === 0) {
           alert('Please place at least one field before continuing.')
           return
         }
         
-        console.log('Saving field placements...')
-        const result = await saveFieldPlacements()
-        console.log('Field placements saved successfully!')
+        console.log('Field placements ready for final submission')
         
-        // Get document details for Step 4
-        if (result?.objectId && documentId) {
-          console.log('Fetching document details...')
-          await getDocumentDetails(documentId)
+        // For self-signing mode, update signature fields with captured signature data
+        if (signingMode === 'sign_yourself' && selfSignatureData) {
+          setFieldPlacements(prev => prev.map(field => 
+            field.type === 'signature' 
+              ? { ...field, signed: true, signatureData: selfSignatureData }
+              : field
+          ))
         }
       }
       
+      // Move to next step without any backend requests
       if (currentStep < 4) {
         setCurrentStep(currentStep + 1)
       }
     } catch (error) {
       console.error('Error in handleNext:', error)
-      alert('Failed to save changes. Please try again.')
+      alert('Failed to proceed. Please try again.')
     }
   }
 
@@ -944,40 +1238,35 @@ export default function CreateTemplatePage() {
     if (!selectedField) return
 
     try {
-      const token = sessionToken || localStorage.getItem('opensign_session_token') || ''
       let signatureData = ''
       
       if (signatureType === 'draw' && sigCanvasRef.current) {
-        signatureData = sigCanvasRef.current.getTrimmedCanvas().toDataURL()
+        signatureData = sigCanvasRef.current.toDataURL()
       } else if (signatureType === 'type') {
         signatureData = typedSignature
       }
 
-      // Call the signPdf API
-      const response = await fetch('http://94.249.71.89:9000/api/app/functions/signPdf', {
-        method: 'POST',
-        headers: {
-          'Accept': '*/*',
-          'Content-Type': 'text/plain',
-          'X-Parse-Application-Id': 'opensign',
-          'X-Parse-Session-Token': token,
-        },
-        body: JSON.stringify({
-          pdfFile: signatureData,
-          _ApplicationId: "opensign",
-          _ClientVersion: "js6.1.1",
-          _InstallationId: "5b57e02d-5015-4c69-bede-06310ad8bae9",
-          _SessionToken: token
-        })
-      })
-
-      if (response.ok) {
-        console.log('Signature saved successfully')
-        setIsSignatureModalOpen(false)
-        setSelectedField(null)
+      if (!signatureData) {
+        alert('Please provide a signature before saving.')
+        return
       }
+
+      console.log('Signature saved locally:', signatureData)
+      
+      // Close the modal and update the field placement with signature data
+      setIsSignatureModalOpen(false)
+      setSelectedField(null)
+      
+      // Update the field placement to indicate it's been signed
+      setFieldPlacements(prev => prev.map(field => 
+        field.id === selectedField.id 
+          ? { ...field, signed: true, signatureData }
+          : field
+      ))
+      
     } catch (error) {
       console.error('Error saving signature:', error)
+      alert('Error saving signature. Please try again.')
     }
   }
 
@@ -986,6 +1275,493 @@ export default function CreateTemplatePage() {
       sigCanvasRef.current.clear()
     }
     setTypedSignature('')
+  }
+
+  // Final send function - triggers getTenant and signPdf APIs based on OpenSign pattern
+  const handleFinalSend = async () => {
+    setIsSaving(true)
+    try {
+      const token = sessionToken || localStorage.getItem('opensign_session_token') || ''
+      
+      if (!currentUserId) {
+        alert('User authentication failed. Please refresh and try again.')
+        return
+      }
+
+      // Step 1: Get tenant details (like OpenSign getTenantDetails)
+      console.log('Step 1: Getting tenant details...')
+      const tenantResponse = await fetch('http://94.249.71.89:9000/api/app/functions/gettenant', {
+        method: 'POST',
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Content-Type': 'text/plain',
+          'Origin': 'http://94.249.71.89:9000',
+          'Pragma': 'no-cache',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+        },
+        body: JSON.stringify({
+          userId: currentUserId,
+          _ApplicationId: "opensign",
+          _ClientVersion: "js6.1.1",
+          _InstallationId: "5b57e02d-5015-4c69-bede-06310ad8bae9",
+          _SessionToken: token
+        })
+      })
+
+      let isCustomCompletionMail = false
+      if (tenantResponse.ok) {
+        const tenantDetails = await tenantResponse.json()
+        console.log('Tenant details:', tenantDetails)
+        
+        if (tenantDetails?.result?.CompletionBody && tenantDetails?.result?.CompletionSubject) {
+          isCustomCompletionMail = true
+        }
+      } else {
+        console.warn('Failed to get tenant details, proceeding without custom completion mail')
+      }
+
+      // Step 2: Handle different modes
+      if (signingMode === 'sign_yourself') {
+        // For self-signing mode, call signPdf API
+        console.log('Step 2: Self-signing mode - calling signPdf...')
+        
+        // Convert PDF to base64
+        let pdfBase64 = ''
+        if (templateData.fileUrl?.startsWith('blob:')) {
+          const response = await fetch(templateData.fileUrl)
+          const arrayBuffer = await response.arrayBuffer()
+          const uint8Array = new Uint8Array(arrayBuffer)
+          const binaryString = uint8Array.reduce((data, byte) => data + String.fromCharCode(byte), '')
+          pdfBase64 = btoa(binaryString)
+        }
+
+        if (!pdfBase64) {
+          alert('PDF file could not be processed. Please try again.')
+          return
+        }
+
+        // Get signature data from field placements
+        const signatureField = fieldPlacements.find(field => field.type === 'signature' && field.signatureData)
+        let signature = ''
+        
+        if (signatureField && signatureField.signatureData) {
+          // Remove the data:image/png;base64, prefix if present
+          signature = signatureField.signatureData.includes(',') 
+            ? signatureField.signatureData.split(',')[1] 
+            : signatureField.signatureData
+        }
+
+        if (!signature) {
+          alert('No signature found. Please ensure you have signed the document.')
+          return
+        }
+
+        // Create a temporary document first (needed for signPdf)
+        const createDocResponse = await fetch('http://94.249.71.89:9000/api/app/classes/contracts_Document', {
+          method: 'POST',
+          headers: {
+            'Accept': '*/*',
+            'Content-Type': 'text/plain',
+            'X-Parse-Application-Id': 'opensign',
+            'X-Parse-Session-Token': token,
+          },
+          body: JSON.stringify({
+            Name: templateData.name || `Self-signed document ${new Date().toISOString()}`,
+            Description: templateData.description || "Self-signed document",
+            Note: "Self-signed via template creation",
+            URL: templateData.fileUrl || "",
+            CreatedBy: {
+              __type: "Pointer",
+              className: "_User",
+              objectId: currentUserId
+            },
+            ExtUserPtr: {
+              __type: "Pointer",
+              className: "contracts_Users",
+              objectId: extUserId
+            },
+            _ApplicationId: "opensign",
+            _ClientVersion: "js6.1.1",
+            _InstallationId: "5b57e02d-5015-4c69-bede-06310ad8bae9",
+            _SessionToken: token
+          })
+        })
+
+        if (!createDocResponse.ok) {
+          throw new Error('Failed to create document for signing')
+        }
+
+        const docResult = await createDocResponse.json()
+        const documentId = docResult.objectId
+        console.log('Document created for signing:', documentId)
+
+        // Call signPdf API following OpenSign pattern
+        const signPdfResponse = await fetch('http://94.249.71.89:9000/api/app/functions/signPdf', {
+          method: 'POST',
+          headers: {
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Content-Type': 'text/plain',
+            'Origin': 'http://94.249.71.89:9000',
+            'Pragma': 'no-cache',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+          },
+          body: JSON.stringify({
+            docId: documentId,
+            pdfFile: pdfBase64,
+            signature: signature,
+            isCustomCompletionMail: isCustomCompletionMail.toString(),
+            _ApplicationId: "opensign",
+            _ClientVersion: "js6.1.1",
+            _InstallationId: "5b57e02d-5015-4c69-bede-06310ad8bae9",
+            _SessionToken: token
+          })
+        })
+
+        if (!signPdfResponse.ok) {
+          const errorText = await signPdfResponse.text()
+          console.error('Failed to sign PDF:', errorText)
+          throw new Error(`Failed to sign PDF: ${signPdfResponse.status}`)
+        }
+
+        const signPdfResult = await signPdfResponse.json()
+        console.log('PDF signed successfully:', signPdfResult)
+        
+        alert('Document signed successfully!')
+        router.push('/templates')
+
+      } else if (signingMode === 'add_signers') {
+        // For add signers mode, save template and send to signers
+        console.log('Step 2: Add signers mode - saving template and sending emails...')
+        
+        // Create template and send emails (reuse existing saveTemplate logic but simplified)
+        const templateResponse = await fetch('http://94.249.71.89:9000/api/app/classes/contracts_Template', {
+          method: 'POST',
+          headers: {
+            'Accept': '*/*',
+            'Content-Type': 'text/plain',
+            'X-Parse-Application-Id': 'opensign',
+            'X-Parse-Session-Token': token,
+          },
+          body: JSON.stringify({
+            Name: templateData.name || "New Template",
+            Description: templateData.description || "",
+            Note: "Please review and sign this document",
+            URL: templateData.fileUrl,
+            CreatedBy: {
+              __type: "Pointer",
+              className: "_User",
+              objectId: currentUserId
+            },
+            ExtUserPtr: {
+              __type: "Pointer",
+              className: "contracts_Users",
+              objectId: extUserId
+            },
+            Signers: selectedSigners.map(signer => ({
+              __type: "Pointer",
+              className: "contracts_Contactbook",
+              objectId: signer.objectId
+            })),
+            SendinOrder: true,
+            AutomaticReminders: false,
+            RemindOnceInEvery: 5,
+            IsEnableOTP: false,
+            AllowModifications: false,
+            IsTourEnabled: true,
+            TimeToCompleteDays: 15,
+            SignatureType: [
+              {"name": "draw", "enabled": true},
+              {"name": "typed", "enabled": true},
+              {"name": "upload", "enabled": true},
+              {"name": "default", "enabled": true}
+            ],
+            NotifyOnSignatures: true,
+            _ApplicationId: "opensign",
+            _ClientVersion: "js6.1.1",
+            _InstallationId: "5b57e02d-5015-4c69-bede-06310ad8bae9",
+            _SessionToken: token
+          })
+        })
+
+        if (!templateResponse.ok) {
+          throw new Error('Failed to create template')
+        }
+
+        const templateResult = await templateResponse.json()
+        console.log('Template created:', templateResult)
+
+        // Send emails to signers
+        const mailResult = await sendMailToSigners()
+        
+        if (mailResult.status === 'success') {
+          alert('Template saved and sent successfully to all signers!')
+          router.push('/templates')
+        } else {
+          alert('Template saved but failed to send emails. Please try again.')
+        }
+      }
+
+    } catch (error) {
+      console.error('Error in final send:', error)
+      alert('Failed to complete the process. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Self-signing handlers
+  const handleSelfSign = async () => {
+    try {
+      if (!templateData.fileUrl) {
+        alert('Please upload a PDF file first');
+        return;
+      }
+
+      const token = sessionToken || localStorage.getItem('opensign_session_token') || ''
+      
+      // Get signature data
+      let signatureData = ''
+      if (signatureType === 'draw' && sigCanvasRef.current) {
+        signatureData = sigCanvasRef.current.toDataURL()
+      } else if (signatureType === 'type') {
+        signatureData = typedSignature
+      }
+
+      // Validate signature data
+      if (!signatureData) {
+        alert('Please draw or type your signature before continuing.')
+        return
+      }
+
+      // Convert PDF file to base64
+      let pdfBase64 = ''
+      try {
+        console.log('Fetching PDF from URL:', templateData.fileUrl)
+        const response = await fetch(templateData.fileUrl)
+        if (!response.ok) {
+          throw new Error(`Failed to fetch PDF: ${response.status}`)
+        }
+        const arrayBuffer = await response.arrayBuffer()
+        console.log('PDF arrayBuffer size:', arrayBuffer.byteLength)
+        const uint8Array = new Uint8Array(arrayBuffer)
+        const binaryString = uint8Array.reduce((data, byte) => data + String.fromCharCode(byte), '')
+        pdfBase64 = btoa(binaryString)
+        console.log('PDF base64 length:', pdfBase64.length)
+      } catch (error) {
+        console.error('Error converting PDF to base64:', error)
+        alert('Error processing PDF file')
+        return
+      }
+
+      // Validate all required data before making API call
+      if (!pdfBase64) {
+        alert('PDF file could not be processed. Please try again.')
+        return
+      }
+      
+      if (!currentUserId) {
+        alert('User authentication failed. Please refresh and try again.')
+        return
+      }
+
+      if (!token) {
+        alert('Session token not found. Please log in again.')
+        return
+      }
+
+      // First create a document, then sign it
+      console.log('Step 1: Creating document record first...')
+      
+      // Create the document first
+      const createDocBody = {
+        "Name": templateData.name || `Self-signed document ${new Date().toISOString()}`,
+        "Description": templateData.description || "Self-signed document",
+        "Note": "Self-signed via template creation",
+        "URL": templateData.fileUrl || "",
+        "CreatedBy": {
+          "__type": "Pointer",
+          "className": "_User",
+          "objectId": currentUserId
+        },
+        "_ApplicationId": "opensign",
+        "_ClientVersion": "js6.1.1", 
+        "_InstallationId": "5b57e02d-5015-4c69-bede-06310ad8bae9",
+        "_SessionToken": token
+      }
+
+      console.log('Creating document with:', {
+        Name: createDocBody.Name,
+        CreatedBy: createDocBody.CreatedBy,
+        hasToken: !!token
+      })
+
+      const createDocResponse = await fetch('http://94.249.71.89:9000/api/app/classes/contracts_Document', {
+        method: 'POST',
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Content-Type': 'text/plain',
+          'Origin': 'http://localhost:3000',
+          'Referer': 'http://localhost:3000/',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify(createDocBody)
+      })
+
+      if (!createDocResponse.ok) {
+        const errorText = await createDocResponse.text()
+        console.error('Failed to create document:', {
+          status: createDocResponse.status,
+          statusText: createDocResponse.statusText,
+          errorBody: errorText
+        })
+        alert(`Failed to create document: ${createDocResponse.status} - ${errorText}`)
+        return
+      }
+
+      const docResult = await createDocResponse.json()
+      console.log('Document created successfully:', docResult)
+      
+      const documentId = docResult.objectId
+      if (!documentId) {
+        console.error('No document ID in response:', docResult)
+        alert('Document creation failed - no ID returned.')
+        return
+      }
+
+      console.log('Step 2: Now signing the document with ID:', documentId)
+
+      // Now sign the document using the document ID
+      const signPdfBody = {
+        "documentId": documentId,
+        "pdfFile": pdfBase64,
+        "CreatedBy": {
+          "__type": "Pointer",
+          "className": "_User", 
+          "objectId": currentUserId
+        },
+        "_ApplicationId": "opensign",
+        "_ClientVersion": "js6.1.1",
+        "_InstallationId": "5b57e02d-5015-4c69-bede-06310ad8bae9",
+        "_SessionToken": token
+      }
+
+      console.log('Signing document with:', {
+        documentId: documentId,
+        pdfFile: `[PDF Base64 - ${pdfBase64?.length} chars]`,
+        CreatedBy: signPdfBody.CreatedBy,
+        hasToken: !!token
+      })
+
+      const signPdfResponse = await fetch('http://94.249.71.89:9000/api/app/functions/signPdf', {
+        method: 'POST',
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Content-Type': 'text/plain',
+          'Origin': 'http://localhost:3000',
+          'Referer': 'http://localhost:3000/',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify(signPdfBody)
+      })
+
+      console.log('SignPdf response status:', signPdfResponse.status)
+
+      if (!signPdfResponse.ok) {
+        const errorText = await signPdfResponse.text()
+        console.error('Failed to sign PDF:', {
+          status: signPdfResponse.status,
+          statusText: signPdfResponse.statusText,
+          errorBody: errorText,
+          documentId: documentId,
+          sentUserId: currentUserId
+        })
+        alert(`Failed to sign PDF: ${signPdfResponse.status} - ${errorText}`)
+        return
+      }
+
+      const signPdfResult = await signPdfResponse.json()
+      console.log('PDF signed successfully:', signPdfResult)
+
+      // Success - store signature data and close modal
+      setSelfSignatureData(signatureData)
+      setShowSelfSignModal(false)
+      
+      // Navigate to next step after successful signing
+      if (currentStep < 4) {
+        setCurrentStep(currentStep + 1)
+      }
+      
+      alert('Document signed and created successfully!')
+
+    } catch (error) {
+      console.error('Error in self-signing process:', error)
+      alert('Error during signing process. Please try again.')
+    }
+  }
+
+  const createSelfSignedDocument = async () => {
+    try {
+      const token = sessionToken || localStorage.getItem('opensign_session_token') || ''
+      
+      // Create document with self-signature
+      const response = await fetch('http://94.249.71.89:9000/api/app/classes/contracts_Document', {
+        method: 'POST',
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Content-Type': 'text/plain',
+          'Origin': 'http://94.249.71.89:9000',
+          'Pragma': 'no-cache',
+          'Referer': 'http://94.249.71.89:9000/form/sHAnZphf69',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify({
+          ExtUserPtr: {
+            __type: "Pointer",
+            className: "contracts_Users",
+            objectId: extUserId
+          },
+          Name: templateData.name || new Date().toISOString().replace('T', ' ').slice(0, 19),
+          Description: templateData.description || "",
+          Note: "Note to myself",
+          URL: templateData.fileUrl,
+          CreatedBy: {
+            __type: "Pointer",
+            className: "_User",
+            objectId: currentUserId
+          },
+          _ApplicationId: "opensign",
+          _ClientVersion: "js6.1.1",
+          _InstallationId: "5b57e02d-5015-4c69-bede-06310ad8bae9",
+          _SessionToken: token
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Self-signed document created:', result)
+        alert('Document created and signed successfully!')
+        router.push('/templates')
+      } else {
+        console.error('Failed to create self-signed document')
+      }
+    } catch (error) {
+      console.error('Error creating self-signed document:', error)
+    }
   }
 
   const filteredSigners = availableSigners.filter(signer => 
@@ -1124,85 +1900,247 @@ export default function CreateTemplatePage() {
                 <div className="lg:col-span-1">
                   <div className="p-6 space-y-6 bg-white border rounded-lg">
                     <div>
-                      <h3 className="mb-4 text-lg font-medium text-gray-900">Add Signers</h3>
-                      <p className="mb-6 text-sm text-gray-600">Add the people who will sign the document</p>
+                      <h3 className="mb-4 text-lg font-medium text-gray-900">Signing Options</h3>
+                      <p className="mb-6 text-sm text-gray-600">Choose how the document will be signed</p>
                     </div>
 
-                    <div>
-                      <h4 className="mb-3 text-sm font-medium text-gray-900">Assignees</h4>
-                      <div className="space-y-3">
-                        {selectedSigners.map((signer, index) => (
-                          <div key={signer.objectId} className="flex items-center p-3 space-x-3 border border-gray-200 rounded-lg">
-                            <div className={`w-8 h-8 ${getAvatarColor(index)} rounded-full flex items-center justify-center text-white text-xs font-medium`}>
-                              {getInitials(signer.Name, signer.Email)}
-                            </div>
-                            <span className="text-sm text-gray-700">{signer.Email}</span>
-                            <button
-                              onClick={() => removeSigner(signer.objectId)}
-                              className="text-gray-400 hover:text-red-500"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                        
-                        <div className="relative signer-dropdown">
-                          <button
-                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="flex items-center justify-center w-8 h-8 text-gray-400 border-2 border-gray-300 border-dashed rounded-full hover:border-gray-400"
-                          >
-                            <span className="text-lg">+</span>
-                          </button>
-
-                          {isDropdownOpen && (
-                            <div className="absolute left-0 z-10 bg-white border border-gray-200 rounded-lg shadow-lg top-10 w-80">
-                              <div className="p-3 border-b">
-                                <input
-                                  type="text"
-                                  placeholder="Search signers..."
-                                  value={searchTerm}
-                                  onChange={(e) => setSearchTerm(e.target.value)}
-                                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                                />
-                              </div>
-                              
-                              <div className="overflow-y-auto max-h-60">
-                                {isLoading ? (
-                                  <div className="p-4 text-center text-gray-500">Loading...</div>
-                                ) : filteredSigners.length === 0 ? (
-                                  <div className="p-4 text-center text-gray-500">No signers found</div>
-                                ) : (
-                                  filteredSigners.map((signer, index) => (
-                                    <div
-                                      key={signer.objectId}
-                                      onClick={() => toggleSigner(signer)}
-                                      className="flex items-center p-3 space-x-3 cursor-pointer hover:bg-gray-50"
-                                    >
-                                      <div className={`w-8 h-8 ${getAvatarColor(index)} rounded-full flex items-center justify-center text-white text-xs font-medium`}>
-                                        {getInitials(signer.Name, signer.Email)}
-                                      </div>
-                                      <div className="flex-1">
-                                        <div className="text-sm font-medium text-gray-900">{signer.Name || signer.Email}</div>
-                                        <div className="text-sm text-gray-500">{signer.Email}</div>
-                                      </div>
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                    {/* Radio Button for Signing Mode */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="radio"
+                          id="sign_yourself"
+                          name="signingMode"
+                          value="sign_yourself"
+                          checked={signingMode === 'sign_yourself'}
+                          onChange={(e) => setSigningMode(e.target.value as 'sign_yourself' | 'add_signers')}
+                          className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500"
+                        />
+                        <label htmlFor="sign_yourself" className="text-sm font-medium text-gray-900">
+                          Sign yourself
+                        </label>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="radio"
+                          id="add_signers"
+                          name="signingMode"
+                          value="add_signers"
+                          checked={signingMode === 'add_signers'}
+                          onChange={(e) => setSigningMode(e.target.value as 'sign_yourself' | 'add_signers')}
+                          className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500"
+                        />
+                        <label htmlFor="add_signers" className="text-sm font-medium text-gray-900">
+                          Add Signers
+                        </label>
                       </div>
                     </div>
 
-                    <div>
-                      <h4 className="mb-3 text-sm font-medium text-gray-900">Order of Signers</h4>
-                      
-                      {selectedSigners.length === 0 ? (
-                        <div className="p-4 text-sm text-center text-gray-500 border border-gray-200 rounded-lg">
-                          No signers selected yet
+                    {/* Self-Signing Section */}
+                    {signingMode === 'sign_yourself' && (
+                      <div className="pt-4 space-y-4 border-t">
+                        <div>
+                          <h4 className="mb-4 text-lg font-medium text-gray-900">Signature</h4>
+                          
+                          {/* Signature Type Tabs */}
+                          <div className="flex mb-4 space-x-1">
+                            <button
+                              onClick={() => setSelfSignatureType('draw')}
+                              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                selfSignatureType === 'draw'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              Draw
+                            </button>
+                            <button
+                              onClick={() => setSelfSignatureType('type')}
+                              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                selfSignatureType === 'type'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              Type
+                            </button>
+                            <button
+                              onClick={() => setSelfSignatureType('upload')}
+                              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                selfSignatureType === 'upload'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              Upload
+                            </button>
+                          </div>
+
+                          {/* Signature Canvas/Input Area */}
+                          <div className="relative">
+                            {selfSignatureType === 'draw' && (
+                              <div className="p-4 border-2 border-gray-300 border-dashed rounded-lg">
+                                <div className="relative">
+                                  <SignatureCanvas
+                                    ref={sigCanvasRef}
+                                    penColor="black"
+                                    canvasProps={{
+                                      width: 300,
+                                      height: 150,
+                                      className: "border-0 w-full"
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      if (sigCanvasRef.current) {
+                                        sigCanvasRef.current.clear()
+                                      }
+                                    }}
+                                    className="absolute text-sm text-gray-400 top-2 right-2 hover:text-gray-600"
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                                <p className="mt-2 text-sm text-center text-gray-500">
+                                  Draw or type name here
+                                </p>
+                              </div>
+                            )}
+
+                            {selfSignatureType === 'type' && (
+                              <div className="p-4 border-2 border-gray-300 border-dashed rounded-lg">
+                                <input
+                                  type="text"
+                                  value={selfTypedSignature}
+                                  onChange={(e) => setSelfTypedSignature(e.target.value)}
+                                  placeholder="Type your name here"
+                                  className="w-full p-3 text-2xl text-center border-0 font-script focus:outline-none"
+                                  style={{ fontFamily: 'cursive' }}
+                                />
+                                <p className="mt-2 text-sm text-center text-gray-500">
+                                  Type your name above
+                                </p>
+                              </div>
+                            )}
+
+                            {selfSignatureType === 'upload' && (
+                              <div className="p-8 text-center border-2 border-gray-300 border-dashed rounded-lg">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  id="signature-upload"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0]
+                                    if (file) {
+                                      const reader = new FileReader()
+                                      reader.onload = (event) => {
+                                        setSelfSignatureData(event.target?.result as string)
+                                      }
+                                      reader.readAsDataURL(file)
+                                    }
+                                  }}
+                                />
+                                <label htmlFor="signature-upload" className="cursor-pointer">
+                                  <div className="text-gray-400 hover:text-gray-600">
+                                    <Upload className="w-8 h-8 mx-auto mb-2" />
+                                    <p className="text-sm">Click to upload signature image</p>
+                                  </div>
+                                </label>
+                                {selfSignatureData && (
+                                  <div className="mt-4">
+                                    <Image 
+                                      src={selfSignatureData} 
+                                      alt="Uploaded signature" 
+                                      width={100}
+                                      height={50}
+                                      className="mx-auto max-h-20"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      ) : (
+                      </div>
+                    )}
+
+                    {/* Add Signers Section */}
+                    {signingMode === 'add_signers' && (
+                      <div className="pt-4 border-t">
+                        <h4 className="mb-3 text-sm font-medium text-gray-900">Assignees</h4>
+                        <div className="space-y-3">
+                          {selectedSigners.map((signer, index) => (
+                            <div key={signer.objectId} className="flex items-center p-3 space-x-3 border border-gray-200 rounded-lg">
+                              <div className={`w-8 h-8 ${getAvatarColor(index)} rounded-full flex items-center justify-center text-white text-xs font-medium`}>
+                                {getInitials(signer.Name, signer.Email)}
+                              </div>
+                              <span className="text-sm text-gray-700">{signer.Email}</span>
+                              <button
+                                onClick={() => removeSigner(signer.objectId)}
+                                className="text-gray-400 hover:text-red-500"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                          
+                          <div className="relative signer-dropdown">
+                            <button
+                              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                              className="flex items-center justify-center w-8 h-8 text-gray-400 border-2 border-gray-300 border-dashed rounded-full hover:border-gray-400"
+                            >
+                              <span className="text-lg">+</span>
+                            </button>
+
+                            {isDropdownOpen && (
+                              <div className="absolute left-0 z-10 bg-white border border-gray-200 rounded-lg shadow-lg top-10 w-80">
+                                <div className="p-3 border-b">
+                                  <input
+                                    type="text"
+                                    placeholder="Search signers..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                  />
+                                </div>
+                                
+                                <div className="overflow-y-auto max-h-60">
+                                  {isLoading ? (
+                                    <div className="p-4 text-center text-gray-500">Loading...</div>
+                                  ) : filteredSigners.length === 0 ? (
+                                    <div className="p-4 text-center text-gray-500">No signers found</div>
+                                  ) : (
+                                    filteredSigners.map((signer, index) => (
+                                      <div
+                                        key={signer.objectId}
+                                        onClick={() => toggleSigner(signer)}
+                                        className="flex items-center p-3 space-x-3 cursor-pointer hover:bg-gray-50"
+                                      >
+                                        <div className={`w-8 h-8 ${getAvatarColor(index)} rounded-full flex items-center justify-center text-white text-xs font-medium`}>
+                                          {getInitials(signer.Name, signer.Email)}
+                                        </div>
+                                        <div className="flex-1">
+                                          <div className="text-sm font-medium text-gray-900">{signer.Name || signer.Email}</div>
+                                          <div className="text-sm text-gray-500">{signer.Email}</div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Order of Signers - only show for add_signers mode */}
+                    {signingMode === 'add_signers' && selectedSigners.length > 0 && (
+                      <div className="pt-4 border-t">
+                        <h4 className="mb-3 text-sm font-medium text-gray-900">Order of Signers</h4>
+                        
                         <div className="space-y-2">
                           {selectedSigners.map((signer, index) => (
                             <div key={signer.objectId} className="flex items-center p-3 space-x-3 border border-gray-200 rounded-lg">
@@ -1232,13 +2170,13 @@ export default function CreateTemplatePage() {
                             </div>
                           ))}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     <div className="pt-4 border-t">
                       <button
                         onClick={handleNext}
-                        disabled={selectedSigners.length === 0 || isSaving}
+                        disabled={(signingMode === 'add_signers' && selectedSigners.length === 0) || isSaving}
                         className="flex items-center justify-center w-full px-4 py-2 text-white transition-colors bg-green-500 rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
                       >
                         {isSaving ? (
@@ -1256,32 +2194,6 @@ export default function CreateTemplatePage() {
                     </div>
                   </div>
                 </div>
-              </div>
-              
-              <div className="flex justify-between">
-                <button
-                  onClick={() => setCurrentStep(1)}
-                  className="px-6 py-2 font-medium text-gray-600 transition-colors border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  ← Back
-                </button>
-                <button
-                  onClick={handleNext}
-                  disabled={selectedSigners.length === 0 || isSaving}
-                  className="flex items-center px-6 py-2 font-medium text-white transition-colors bg-green-500 rounded-md hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  {isSaving ? (
-                    <>
-                      <svg className="w-5 h-5 mr-3 -ml-1 text-white animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Saving...
-                    </>
-                  ) : (
-                    'Next →'
-                  )}
-                </button>
               </div>
             </div>
           )}
@@ -1323,22 +2235,41 @@ export default function CreateTemplatePage() {
                       })}
                     </div>
 
-                    <div className="pt-4 border-t">
-                      <h4 className="mb-3 text-sm font-medium text-gray-900">Roles</h4>
-                      <div className="space-y-2">
-                        {selectedSigners.map((signer, index) => (
-                          <div key={signer.objectId} className="flex items-center p-2 space-x-3 rounded">
-                            <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium", getAvatarColor(index))}>
-                              {getInitials(signer.Name, signer.Email)}
+                    {/* Roles Section - only show for add_signers mode */}
+                    {signingMode === 'add_signers' && selectedSigners.length > 0 && (
+                      <div className="pt-4 border-t">
+                        <h4 className="mb-3 text-sm font-medium text-gray-900">Roles</h4>
+                        <div className="space-y-2">
+                          {selectedSigners.map((signer, index) => (
+                            <div key={signer.objectId} className="flex items-center p-2 space-x-3 rounded">
+                              <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium", getAvatarColor(index))}>
+                                {getInitials(signer.Name, signer.Email)}
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">{signer.Name || 'User'}</div>
+                                <div className="text-xs text-gray-500">{signer.Email}</div>
+                              </div>
                             </div>
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">{signer.Name || 'User'}</div>
-                              <div className="text-xs text-gray-500">{signer.Email}</div>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {/* Current User Display - only show for sign_yourself mode */}
+                    {signingMode === 'sign_yourself' && (
+                      <div className="pt-4 border-t">
+                        <h4 className="mb-3 text-sm font-medium text-gray-900">Signer</h4>
+                        <div className="flex items-center p-2 space-x-3 rounded">
+                          <div className="flex items-center justify-center w-6 h-6 text-xs font-medium text-white bg-blue-500 rounded-full">
+                            ME
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">You</div>
+                            <div className="text-xs text-gray-500">Self-signing mode</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1413,13 +2344,24 @@ export default function CreateTemplatePage() {
                                             top: field.y * scale,
                                             width: field.width * scale,
                                             height: field.height * scale,
-                                            backgroundColor: getFieldTypeConfig(field.type).bgColor,
+                                            backgroundColor: field.type === 'signature' && field.signatureData 
+                                              ? 'rgba(255, 255, 255, 0.9)' 
+                                              : getFieldTypeConfig(field.type).bgColor,
                                             borderColor: getFieldTypeConfig(field.type).borderColor,
                                           }}
                                           onClick={() => handleFieldClick(field)}
                                         >
                                           <div className="flex items-center justify-center h-full text-xs font-medium" style={{ color: getFieldTypeConfig(field.type).textColor }}>
-                                            {field.type}
+                                            {field.type === 'signature' && field.signatureData ? (
+                                              <img
+                                                src={field.signatureData}
+                                                alt="signature"
+                                                className="object-contain w-full h-full"
+                                                style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                              />
+                                            ) : (
+                                              field.type
+                                            )}
                                           </div>
                                           <button
                                             onClick={(e) => {
@@ -1504,7 +2446,7 @@ export default function CreateTemplatePage() {
                   ← Back
                 </button>
                 <button
-                  onClick={handleNext}
+                  onClick={() => setCurrentStep(4)}
                   className="px-6 py-2 font-medium text-white transition-colors bg-green-500 rounded-md hover:bg-green-600"
                 >
                   Next →
@@ -1515,14 +2457,240 @@ export default function CreateTemplatePage() {
 
           {/* Step 4: Review & Finish */}
           {currentStep === 4 && (
-            <TemplateReviewStep
-              fileUrl={templateData.fileUrl || ''}
-              templateName={templateData.name || 'Document.pdf'}
-              fieldPlacements={fieldPlacements}
-              onCancel={handleCancel}
-              onSaveTemplate={handleSaveTemplateClick}
-              onBack={() => setCurrentStep(3)}
-            />
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-900">Review & Finish</h2>
+              
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+                {/* Left Panel - Summary */}
+                <div className="lg:col-span-1">
+                  <div className="p-4 space-y-4 bg-white border rounded-lg">
+                    <div>
+                      <h3 className="mb-2 text-lg font-medium text-gray-900">Summary</h3>
+                      <p className="text-sm text-gray-600">Review your template before {signingMode === 'sign_yourself' ? 'saving' : 'sending'}</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Document</label>
+                        <p className="text-sm text-gray-900">{templateData.name || 'Document.pdf'}</p>
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Mode</label>
+                        <p className="text-sm text-gray-900">
+                          {signingMode === 'sign_yourself' ? 'Self-Signing' : 'Multiple Signers'}
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Fields Placed</label>
+                        <p className="text-sm text-gray-900">{fieldPlacements.length} field{fieldPlacements.length !== 1 ? 's' : ''}</p>
+                      </div>
+
+                      {signingMode === 'add_signers' && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Signers</label>
+                          <div className="space-y-1">
+                            {selectedSigners.map((signer, index) => (
+                              <div key={signer.objectId} className="flex items-center space-x-2">
+                                <div className={cn("w-4 h-4 rounded-full flex items-center justify-center text-white text-xs", getAvatarColor(index))}>
+                                  {getInitials(signer.Name, signer.Email)}
+                                </div>
+                                <span className="text-sm text-gray-700">{signer.Name || signer.Email}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {signingMode === 'sign_yourself' && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Your Signature</label>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex items-center justify-center w-4 h-4 text-xs text-white bg-blue-500 rounded-full">
+                              ✓
+                            </div>
+                            <span className="text-sm text-gray-700">Ready to sign</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Panel - PDF Preview (same as Step 3) */}
+                <div className="lg:col-span-3">
+                  <div className="overflow-hidden bg-white border rounded-lg">
+                    <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                        <h3 className="font-medium text-gray-900">{templateData.name || 'Document.pdf'}</h3>
+                        <span className="text-sm text-gray-500">Final Review</span>
+                      </div>
+                      <button 
+                        onClick={handleCancel}
+                        className="text-sm text-red-500 hover:underline"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    
+                    <div className="p-4">
+                      {templateData.fileUrl ? (
+                        <div className="relative overflow-hidden border rounded-lg" style={{ height: '600px' }}>
+                          {/* Same PDF viewer as Step 3 but read-only */}
+                          <div className="absolute inset-0 overflow-auto bg-gray-100">
+                            <div className="relative flex justify-center p-4">
+                              <Document 
+                                file={templateData.fileUrl}
+                                onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                                loading={<div className="flex items-center justify-center h-64"><div className="text-gray-500">Loading PDF...</div></div>}
+                              >
+                                <div className="relative bg-white shadow-lg">
+                                  <Page 
+                                    pageNumber={currentPage}
+                                    scale={scale}
+                                    className="relative"
+                                    renderTextLayer={false}
+                                    renderAnnotationLayer={false}
+                                  />
+
+                                  {/* Field Overlays - Read-only view with completed content */}
+                                  {fieldPlacements
+                                    .filter(field => field.page === currentPage)
+                                    .map((field) => {
+                                      const assignedSigner = selectedSigners.find(s => s.objectId === field.assignedSigner)
+                                      const signerIndex = selectedSigners.findIndex(s => s.objectId === field.assignedSigner)
+                                      
+                                      return (
+                                        <div
+                                          key={field.id}
+                                          className="absolute border-2 border-solid"
+                                          style={{
+                                            left: field.x * scale,
+                                            top: field.y * scale,
+                                            width: field.width * scale,
+                                            height: field.height * scale,
+                                            backgroundColor: field.type === 'signature' && field.signatureData 
+                                              ? 'rgba(255, 255, 255, 0.9)' 
+                                              : getFieldTypeConfig(field.type).bgColor,
+                                            borderColor: field.type === 'signature' && field.signatureData
+                                              ? '#22c55e'
+                                              : getFieldTypeConfig(field.type).borderColor,
+                                          }}
+                                        >
+                                          <div className="flex items-center justify-center h-full text-xs font-medium" style={{ color: getFieldTypeConfig(field.type).textColor }}>
+                                            {field.type === 'signature' && field.signatureData ? (
+                                              <img
+                                                src={field.signatureData}
+                                                alt="signature"
+                                                className="object-contain w-full h-full"
+                                                style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                              />
+                                            ) : (
+                                              field.type
+                                            )}
+                                          </div>
+                                          
+                                          {/* Status indicator for completed fields */}
+                                          {field.type === 'signature' && field.signatureData && (
+                                            <div className="absolute flex items-center justify-center w-6 h-6 text-white bg-green-500 rounded-full -top-2 -right-2">
+                                              <CheckCircle className="w-4 h-4" />
+                                            </div>
+                                          )}
+                                          
+                                          {assignedSigner && (
+                                            <div className="absolute left-0 flex items-center space-x-1 -top-6">
+                                              <div className={cn("w-4 h-4 rounded-full flex items-center justify-center text-white text-xs", getAvatarColor(signerIndex))}>
+                                                {getInitials(assignedSigner.Name, assignedSigner.Email)}
+                                              </div>
+                                              <span className="px-1 text-xs text-gray-700 bg-white rounded">{assignedSigner.Name}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                </div>
+                              </Document>
+                            </div>
+
+                            {/* PDF Navigation Controls */}
+                            <div className="absolute flex items-center px-4 py-2 space-x-4 transform -translate-x-1/2 bg-white border rounded-lg shadow-sm bottom-4 left-1/2">
+                              <button
+                                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                disabled={currentPage <= 1}
+                                className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <ChevronLeft className="w-4 h-4" />
+                              </button>
+                              <span className="text-sm">Page {currentPage} of {numPages}</span>
+                              <button
+                                onClick={() => setCurrentPage(Math.min(numPages, currentPage + 1))}
+                                disabled={currentPage >= numPages}
+                                className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                              <div className="w-px h-4 bg-gray-300"></div>
+                              <button
+                                onClick={() => setScale(Math.max(0.5, scale - 0.1))}
+                                className="p-1 rounded hover:bg-gray-100"
+                              >
+                                <ZoomOut className="w-4 h-4" />
+                              </button>
+                              <span className="text-sm">{Math.round(scale * 100)}%</span>
+                              <button
+                                onClick={() => setScale(Math.min(2, scale + 0.1))}
+                                className="p-1 rounded hover:bg-gray-100"
+                              >
+                                <ZoomIn className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-8 border rounded-lg min-h-96 bg-gray-50">
+                          <div className="space-y-4 text-center text-gray-500">
+                            <FileText className="w-16 h-16 mx-auto" />
+                            <div>
+                              <p className="font-medium">Document Preview</p>
+                              <p className="text-sm">No document uploaded yet</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Navigation */}
+              <div className="flex justify-between">
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  className="px-6 py-2 font-medium text-gray-600 transition-colors border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={handleFinalSend}
+                  disabled={isSaving}
+                  className="px-8 py-2 font-medium text-white transition-colors bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? (
+                    <>
+                      <svg className="w-5 h-5 mr-3 -ml-1 text-white animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {signingMode === 'sign_yourself' ? 'Saving...' : 'Sending...'}
+                    </>
+                  ) : (
+                    signingMode === 'sign_yourself' ? 'Save' : 'Send'
+                  )}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -1753,27 +2921,96 @@ export default function CreateTemplatePage() {
               {/* Signature Canvas */}
               <div className="p-4 border-2 border-gray-200 rounded-lg bg-gray-50">
                 {signatureType === 'draw' && (
-                  <SignatureCanvas
-                    ref={sigCanvasRef}
-                    penColor="blue"
-                    canvasProps={{
-                      width: 500,
-                      height: 200,
-                      className: 'sigCanvas border rounded bg-white'
-                    }}
-                  />
+                  <div className="space-y-3">
+                    {/* Show Step 2 signature if available for self-signing mode */}
+                    {signingMode === 'sign_yourself' && selfSignatureData && (
+                      <div className="p-3 border border-blue-200 rounded-lg bg-blue-50">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-blue-900">Signature from Step 2</p>
+                            <p className="text-xs text-blue-700">Your signature from the template settings</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              // Use the signature from Step 2
+                              if (sigCanvasRef.current) {
+                                // Clear current canvas and set the Step 2 signature
+                                sigCanvasRef.current.clear()
+                                // We'll handle setting the signature in the canvas
+                                const img = new window.Image()
+                                img.onload = () => {
+                                  const canvas = sigCanvasRef.current?.getCanvas()
+                                  if (canvas) {
+                                    const ctx = canvas.getContext('2d')
+                                    if (ctx) {
+                                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+                                    }
+                                  }
+                                }
+                                img.src = selfSignatureData
+                              }
+                            }}
+                            className="px-3 py-1 text-sm text-blue-700 bg-blue-100 rounded hover:bg-blue-200"
+                          >
+                            Use This Signature
+                          </button>
+                        </div>
+                        <div className="mt-2">
+                          <Image
+                            src={selfSignatureData}
+                            alt="Step 2 signature"
+                            width={100}
+                            height={50}
+                            className="border rounded max-h-12"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    
+                    <SignatureCanvas
+                      ref={sigCanvasRef}
+                      penColor="blue"
+                      canvasProps={{
+                        width: 500,
+                        height: 200,
+                        className: 'sigCanvas border rounded bg-white'
+                      }}
+                    />
+                  </div>
                 )}
                 
                 {signatureType === 'type' && (
-                  <div className="flex items-center justify-center w-full h-48 bg-white border rounded">
-                    <input
-                      type="text"
-                      value={typedSignature}
-                      onChange={(e) => setTypedSignature(e.target.value)}
-                      placeholder="Type your signature here"
-                      className="w-full text-2xl text-center text-blue-600 bg-transparent border-none outline-none font-signature"
-                      style={{ fontFamily: 'cursive' }}
-                    />
+                  <div className="space-y-3">
+                    {/* Show Step 2 typed signature if available for self-signing mode */}
+                    {signingMode === 'sign_yourself' && selfTypedSignature && (
+                      <div className="p-3 border border-blue-200 rounded-lg bg-blue-50">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-blue-900">Typed signature from Step 2</p>
+                            <p className="text-xs text-blue-700 font-cursive" style={{ fontFamily: 'cursive' }}>
+                              {selfTypedSignature}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setTypedSignature(selfTypedSignature)}
+                            className="px-3 py-1 text-sm text-blue-700 bg-blue-100 rounded hover:bg-blue-200"
+                          >
+                            Use This
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-center w-full h-48 bg-white border rounded">
+                      <input
+                        type="text"
+                        value={typedSignature}
+                        onChange={(e) => setTypedSignature(e.target.value)}
+                        placeholder="Type your signature here"
+                        className="w-full text-2xl text-center text-blue-600 bg-transparent border-none outline-none font-signature"
+                        style={{ fontFamily: 'cursive' }}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -1808,6 +3045,159 @@ export default function CreateTemplatePage() {
                     Done
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Self-Signing Modal */}
+      {showSelfSignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-2xl p-6 bg-white rounded-lg shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Sign Document</h2>
+              <button
+                onClick={() => setShowSelfSignModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Signature Field */}
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700">
+                  Signature
+                </label>
+                
+                {/* Signature Type Tabs */}
+                <div className="flex p-1 mb-4 space-x-1 bg-gray-100 rounded-lg">
+                  <button
+                    onClick={() => setSignatureType('draw')}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                      signatureType === 'draw'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Draw
+                  </button>
+                  <button
+                    onClick={() => setSignatureType('type')}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                      signatureType === 'type'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Type
+                  </button>
+                  <button
+                    onClick={() => setSignatureType('upload')}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                      signatureType === 'upload'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Upload
+                  </button>
+                </div>
+
+                {/* Signature Canvas */}
+                <div className="border-2 border-dashed border-gray-300 rounded-lg bg-white min-h-[200px] flex items-center justify-center">
+                  {signatureType === 'draw' && (
+                    <div className="relative w-full h-full">
+                      <SignatureCanvas
+                        ref={sigCanvasRef}
+                        penColor="black"
+                        canvasProps={{
+                          width: 600,
+                          height: 200,
+                          className: 'w-full h-full'
+                        }}
+                      />
+                      <div className="absolute bottom-2 right-2">
+                        <button
+                          onClick={clearSignature}
+                          className="px-3 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {signatureType === 'type' && (
+                    <div className="w-full p-4">
+                      <input
+                        type="text"
+                        value={typedSignature}
+                        onChange={(e) => setTypedSignature(e.target.value)}
+                        placeholder="Type your name here"
+                        className="w-full px-3 py-2 text-2xl bg-transparent border-none outline-none font-script"
+                        style={{ fontFamily: 'Dancing Script, cursive' }}
+                      />
+                    </div>
+                  )}
+                  
+                  {signatureType === 'upload' && (
+                    <div className="p-8 text-center">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        id="signature-upload"
+                      />
+                      <label
+                        htmlFor="signature-upload"
+                        className="text-gray-600 cursor-pointer hover:text-gray-900"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-center w-12 h-12 mx-auto bg-gray-100 rounded-full">
+                            <Upload className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium">Click to upload signature</span>
+                            <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                  
+                  {signatureType !== 'upload' && (signatureType === 'draw' ? !sigCanvasRef.current?.isEmpty() : typedSignature) && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      {signatureType === 'type' && (
+                        <span className="text-2xl font-script" style={{ fontFamily: 'Dancing Script, cursive' }}>
+                          {typedSignature}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <p className="mt-2 text-xs text-gray-500">
+                  Draw or type name here
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end pt-6 space-x-3 border-t">
+                <button
+                  onClick={() => setShowSelfSignModal(false)}
+                  className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSelfSign}
+                  className="px-8 py-2 text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  Continue
+                </button>
               </div>
             </div>
           </div>
