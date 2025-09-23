@@ -30,16 +30,36 @@ export default function TeamPage() {
           return
         }
         
-        // Call getUserDetails with Parse Server payload structure (simplified)
+        // Call getUserDetails using direct fetch like the working curl command
         const payload = {
           "_ApplicationId": "opensign",
           "_ClientVersion": "js6.1.1", 
-          "_InstallationId": "5b57e02d-5015-4c69-bede-06310ad8bae9",
+          "_InstallationId": "22ad0a9b-a8a2-400b-99f0-d979c070ea35",
           "_SessionToken": sessionToken
         }
         
-        // callFunction will automatically add _SessionToken to payload
-        const userDetails = await openSignApiService.callFunction('getUserDetails', payload)
+        // Use direct fetch to match the working curl format
+        const response = await fetch('http://94.249.71.89:9000/api/app/functions/getUserDetails', {
+          method: 'POST',
+          headers: {
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Content-Type': 'text/plain',
+            'Origin': 'http://94.249.71.89:9000',
+            'Pragma': 'no-cache',
+            'Referer': 'http://94.249.71.89:9000/dashboard/35KBoSgoAK',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+          },
+          body: JSON.stringify(payload)
+        })
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        const userDetails = await response.json()
         console.log('Current user details:', userDetails)
         
         // Handle different possible response structures

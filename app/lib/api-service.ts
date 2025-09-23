@@ -149,47 +149,90 @@ export const openSignApiService = {
     
     const sessionToken = getSessionToken();
     
-    // ✅ FIXED: OpenSign format uses application/json content-type and sessiontoken in headers
+    // ✅ FIXED: Detect Parse REST API endpoints vs Cloud Functions
     const isParseRestAPI = path.startsWith('users/') || path.startsWith('classes/') || path.startsWith('installations/') || path.startsWith('roles/') || path.startsWith('sessions/');
     
-    const openSignData = {
-      ...params,
-      _ApplicationId: "opensign",
-      _ClientVersion: "js6.1.1",
-      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
-      // Add _SessionToken to the request body as requested
-      ...(sessionToken && { _SessionToken: sessionToken }),
-      // Add _method: "GET" for Parse REST API endpoints
-      ...(isParseRestAPI && { _method: "GET" })
-    };
-    
-    console.log(`[OpenSign] POST ${baseUrl}/${path} (${isParseRestAPI ? 'Parse REST with _method: GET' : 'Cloud Function'})`);
-    console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
-    console.log(`[OpenSign] Data:`, openSignData);
-    
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "X-Parse-Application-Id": OPENSIGN_APP_ID,
-      "Origin": "http://94.249.71.89:9000",
-      "Referer": "http://94.249.71.89:9000/",
-      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
-    };
-    
-    // ✅ FIXED: Add session token in headers, not in body
-    if (sessionToken) {
-      headers["sessionToken"] = sessionToken;
+    if (isParseRestAPI) {
+      // For Parse REST API endpoints, use GET method with query parameters and X-Parse-Session-Token header
+      const queryParams = new URLSearchParams();
+      
+      // Add query parameters
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, String(value));
+        }
+      });
+      
+      const queryString = queryParams.toString();
+      const url = queryString ? `${baseUrl}/${path}?${queryString}` : `${baseUrl}/${path}`;
+      
+      console.log(`[OpenSign] GET ${url} (Parse REST API)`);
+      console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+      
+      const headers: Record<string, string> = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive", 
+        "Pragma": "no-cache",
+        "Referer": "http://94.249.71.89:9000/dashboard/35KBoSgoAK",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        "X-Parse-Application-Id": OPENSIGN_APP_ID,
+      };
+      
+      // ✅ FIXED: For Parse REST API, use X-Parse-Session-Token header
+      if (sessionToken) {
+        headers["X-Parse-Session-Token"] = sessionToken;
+      }
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
+      });
+      
+      console.log(`[OpenSign] Response status: ${response.status}`);
+      const result = await handleResponse<T>(response);
+      console.log(`[OpenSign] Response data:`, result);
+      return result;
+    } else {
+      // For Cloud Functions, use POST method with body data
+      const openSignData = {
+        ...params,
+        _ApplicationId: "opensign",
+        _ClientVersion: "js6.1.1",
+        _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+        // Add _SessionToken to the request body for cloud functions
+        ...(sessionToken && { _SessionToken: sessionToken })
+      };
+      
+      console.log(`[OpenSign] POST ${baseUrl}/${path} (Cloud Function)`);
+      console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+      console.log(`[OpenSign] Data:`, openSignData);
+      
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "X-Parse-Application-Id": OPENSIGN_APP_ID,
+        "Origin": "http://94.249.71.89:9000",
+        "Referer": "http://94.249.71.89:9000/",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+      };
+      
+      // For cloud functions, add session token in headers as well
+      if (sessionToken) {
+        headers["sessionToken"] = sessionToken;
+      }
+      
+      const response = await fetch(`${baseUrl}/${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(openSignData),
+      });
+      
+      console.log(`[OpenSign] Response status: ${response.status}`);
+      const result = await handleResponse<T>(response);
+      console.log(`[OpenSign] Response data:`, result);
+      return result;
     }
-    
-    const response = await fetch(`${baseUrl}/${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(openSignData),
-    });
-    
-    console.log(`[OpenSign] Response status: ${response.status}`);
-    const result = await handleResponse<T>(response);
-    console.log(`[OpenSign] Response data:`, result);
-    return result;
   },
 
   post: async <T, D = unknown>(path: string, data: D): Promise<T> => {
@@ -198,43 +241,81 @@ export const openSignApiService = {
     
     const sessionToken = getSessionToken();
     
-    // ✅ FIXED: OpenSign format uses application/json content-type and sessiontoken in headers
-    const openSignData = {
-      ...data,
-      _ApplicationId: "opensign",
-      _ClientVersion: "js6.1.1",
-      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
-      // Add _SessionToken to the request body as requested
-      ...(sessionToken && { _SessionToken: sessionToken })
-    };
+    // ✅ FIXED: Detect Parse REST API endpoints vs Cloud Functions
+    const isParseRestAPI = path.startsWith('users/') || path.startsWith('classes/') || path.startsWith('installations/') || path.startsWith('roles/') || path.startsWith('sessions/');
     
-    console.log(`[OpenSign] POST ${baseUrl}/${path}`);
-    console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
-    console.log(`[OpenSign] Data:`, openSignData);
-    
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "X-Parse-Application-Id": OPENSIGN_APP_ID,
-      "Origin": "http://94.249.71.89:9000",
-      "Referer": "http://94.249.71.89:9000/",
-      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
-    };
-    
-    // ✅ FIXED: Add session token in headers, not in body
-    if (sessionToken) {
-      headers["sessionToken"] = sessionToken;
+    if (isParseRestAPI) {
+      // For Parse REST API endpoints, use proper Parse format
+      console.log(`[OpenSign] POST ${baseUrl}/${path} (Parse REST API)`);
+      console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+      console.log(`[OpenSign] Data:`, data);
+      
+      const headers: Record<string, string> = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Content-Type": "application/json",
+        "Pragma": "no-cache",
+        "Referer": "http://94.249.71.89:9000/dashboard/35KBoSgoAK",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        "X-Parse-Application-Id": OPENSIGN_APP_ID,
+      };
+      
+      // ✅ FIXED: For Parse REST API, use X-Parse-Session-Token header
+      if (sessionToken) {
+        headers["X-Parse-Session-Token"] = sessionToken;
+      }
+      
+      const response = await fetch(`${baseUrl}/${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(data),
+      });
+      
+      console.log(`[OpenSign] Response status: ${response.status}`);
+      const result = await handleResponse<T>(response);
+      console.log(`[OpenSign] Response data:`, result);
+      return result;
+    } else {
+      // For Cloud Functions, use the old format with metadata in body
+      const openSignData = {
+        ...data,
+        _ApplicationId: "opensign",
+        _ClientVersion: "js6.1.1",
+        _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+        // Add _SessionToken to the request body for cloud functions
+        ...(sessionToken && { _SessionToken: sessionToken })
+      };
+      
+      console.log(`[OpenSign] POST ${baseUrl}/${path} (Cloud Function)`);
+      console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+      console.log(`[OpenSign] Data:`, openSignData);
+      
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "X-Parse-Application-Id": OPENSIGN_APP_ID,
+        "Origin": "http://94.249.71.89:9000",
+        "Referer": "http://94.249.71.89:9000/",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+      };
+      
+      // For cloud functions, add session token in headers as well
+      if (sessionToken) {
+        headers["sessionToken"] = sessionToken;
+      }
+      
+      const response = await fetch(`${baseUrl}/${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(openSignData),
+      });
+      
+      console.log(`[OpenSign] Response status: ${response.status}`);
+      const result = await handleResponse<T>(response);
+      console.log(`[OpenSign] Response data:`, result);
+      return result;
     }
-    
-    const response = await fetch(`${baseUrl}/${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(openSignData),
-    });
-    
-    console.log(`[OpenSign] Response status: ${response.status}`);
-    const result = await handleResponse<T>(response);
-    console.log(`[OpenSign] Response data:`, result);
-    return result;
   },
 
   put: async <T, D = unknown>(path: string, data: D): Promise<T> => {
@@ -243,44 +324,82 @@ export const openSignApiService = {
     
     const sessionToken = getSessionToken();
     
-    // ✅ FIXED: OpenSign format uses application/json content-type and sessiontoken in headers
-    const openSignData = {
-      ...data,
-      _method: "PUT",
-      _ApplicationId: "opensign",
-      _ClientVersion: "js6.1.1",
-      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
-      // Add _SessionToken to the request body as requested
-      ...(sessionToken && { _SessionToken: sessionToken })
-    };
+    // ✅ FIXED: Detect Parse REST API endpoints vs Cloud Functions
+    const isParseRestAPI = path.startsWith('users/') || path.startsWith('classes/') || path.startsWith('installations/') || path.startsWith('roles/') || path.startsWith('sessions/');
     
-    console.log(`[OpenSign] POST ${baseUrl}/${path} (with _method: PUT)`);
-    console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
-    console.log(`[OpenSign] Data:`, openSignData);
-    
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "X-Parse-Application-Id": OPENSIGN_APP_ID,
-      "Origin": "http://94.249.71.89:9000",
-      "Referer": "http://94.249.71.89:9000/",
-      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
-    };
-    
-    // ✅ FIXED: Add session token in headers, not in body
-    if (sessionToken) {
-      headers["sessionToken"] = sessionToken;
+    if (isParseRestAPI) {
+      // For Parse REST API endpoints, use proper Parse format
+      console.log(`[OpenSign] PUT ${baseUrl}/${path} (Parse REST API)`);
+      console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+      console.log(`[OpenSign] Data:`, data);
+      
+      const headers: Record<string, string> = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Content-Type": "application/json",
+        "Pragma": "no-cache",
+        "Referer": "http://94.249.71.89:9000/dashboard/35KBoSgoAK",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        "X-Parse-Application-Id": OPENSIGN_APP_ID,
+      };
+      
+      // ✅ FIXED: For Parse REST API, use X-Parse-Session-Token header
+      if (sessionToken) {
+        headers["X-Parse-Session-Token"] = sessionToken;
+      }
+      
+      const response = await fetch(`${baseUrl}/${path}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(data),
+      });
+      
+      console.log(`[OpenSign] Response status: ${response.status}`);
+      const result = await handleResponse<T>(response);
+      console.log(`[OpenSign] Response data:`, result);
+      return result;
+    } else {
+      // For Cloud Functions, use POST with _method: PUT
+      const openSignData = {
+        ...data,
+        _method: "PUT",
+        _ApplicationId: "opensign",
+        _ClientVersion: "js6.1.1",
+        _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+        // Add _SessionToken to the request body for cloud functions
+        ...(sessionToken && { _SessionToken: sessionToken })
+      };
+      
+      console.log(`[OpenSign] POST ${baseUrl}/${path} (with _method: PUT)`);
+      console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+      console.log(`[OpenSign] Data:`, openSignData);
+      
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "X-Parse-Application-Id": OPENSIGN_APP_ID,
+        "Origin": "http://94.249.71.89:9000",
+        "Referer": "http://94.249.71.89:9000/",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+      };
+      
+      // For cloud functions, add session token in headers as well
+      if (sessionToken) {
+        headers["sessionToken"] = sessionToken;
+      }
+      
+      const response = await fetch(`${baseUrl}/${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(openSignData),
+      });
+      
+      console.log(`[OpenSign] Response status: ${response.status}`);
+      const result = await handleResponse<T>(response);
+      console.log(`[OpenSign] Response data:`, result);
+      return result;
     }
-    
-    const response = await fetch(`${baseUrl}/${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(openSignData),
-    });
-    
-    console.log(`[OpenSign] Response status: ${response.status}`);
-    const result = await handleResponse<T>(response);
-    console.log(`[OpenSign] Response data:`, result);
-    return result;
   },
 
   delete: async <T>(path: string, params: Record<string, unknown> = {}): Promise<T> => {
@@ -289,36 +408,83 @@ export const openSignApiService = {
     
     const sessionToken = getSessionToken();
     
-    // ✅ FIX: Add OpenSign metadata and session token to query parameters for DELETE requests
-    const openSignParams = {
-      ...params,
-      _ApplicationId: "opensign",
-      _ClientVersion: "js6.1.1",
-      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
-      ...(sessionToken && { _SessionToken: sessionToken })
-    };
+    // ✅ FIXED: Detect Parse REST API endpoints vs Cloud Functions
+    const isParseRestAPI = path.startsWith('users/') || path.startsWith('classes/') || path.startsWith('installations/') || path.startsWith('roles/') || path.startsWith('sessions/');
     
-    // Convert params to query string
-    const queryString = Object.keys(openSignParams).length > 0 
-      ? '?' + new URLSearchParams(openSignParams as Record<string, string>).toString()
-      : '';
-    
-    console.log(`[OpenSign API] DELETE ${baseUrl}/${path}${queryString}`);
-    console.log(`[OpenSign API] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
-    
-    const response = await fetch(`${baseUrl}/${path}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
+    if (isParseRestAPI) {
+      // For Parse REST API endpoints, use DELETE method with query parameters
+      const queryParams = new URLSearchParams();
+      
+      // Add query parameters
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, String(value));
+        }
+      });
+      
+      const queryString = queryParams.toString();
+      const url = queryString ? `${baseUrl}/${path}?${queryString}` : `${baseUrl}/${path}`;
+      
+      console.log(`[OpenSign] DELETE ${url} (Parse REST API)`);
+      console.log(`[OpenSign] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+      
+      const headers: Record<string, string> = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Pragma": "no-cache",
+        "Referer": "http://94.249.71.89:9000/dashboard/35KBoSgoAK",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
         "X-Parse-Application-Id": OPENSIGN_APP_ID,
-        "X-Parse-Session-Token": sessionToken,
-      },
-    });
-    
-    console.log(`[OpenSign API] Response status: ${response.status}`);
-    const result = await handleResponse<T>(response);
-    console.log(`[OpenSign API] Response data:`, result);
-    return result;
+      };
+      
+      // ✅ FIXED: For Parse REST API, use X-Parse-Session-Token header
+      if (sessionToken) {
+        headers["X-Parse-Session-Token"] = sessionToken;
+      }
+      
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers,
+      });
+      
+      console.log(`[OpenSign] Response status: ${response.status}`);
+      const result = await handleResponse<T>(response);
+      console.log(`[OpenSign] Response data:`, result);
+      return result;
+    } else {
+      // For Cloud Functions, use GET with query parameters (legacy method)
+      const openSignParams = {
+        ...params,
+        _ApplicationId: "opensign",
+        _ClientVersion: "js6.1.1",
+        _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+        ...(sessionToken && { _SessionToken: sessionToken })
+      };
+      
+      // Convert params to query string
+      const queryString = Object.keys(openSignParams).length > 0 
+        ? '?' + new URLSearchParams(openSignParams as Record<string, string>).toString()
+        : '';
+      
+      console.log(`[OpenSign API] GET ${baseUrl}/${path}${queryString} (Cloud Function)`);
+      console.log(`[OpenSign API] Session token: ${sessionToken ? `${sessionToken.substring(0, 15)}...` : 'none'}`);
+      
+      const response = await fetch(`${baseUrl}/${path}${queryString}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Parse-Application-Id": OPENSIGN_APP_ID,
+          "X-Parse-Session-Token": sessionToken,
+        },
+      });
+      
+      console.log(`[OpenSign API] Response status: ${response.status}`);
+      const result = await handleResponse<T>(response);
+      console.log(`[OpenSign API] Response data:`, result);
+      return result;
+    }
   },
 
   // Parse Server cloud function calls
@@ -399,48 +565,85 @@ export const openSignApiService = {
     // Ensure path doesn't start with /
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
     
-    // Parse existing body if it's a string
-    let bodyData: Record<string, unknown> = {};
-    if (options.body && typeof options.body === 'string') {
-      try {
-        bodyData = JSON.parse(options.body);
-      } catch {
-        bodyData = {};
+    // ✅ FIXED: Detect Parse REST API endpoints vs Cloud Functions
+    const isParseRestAPI = cleanPath.startsWith('users/') || cleanPath.startsWith('classes/') || cleanPath.startsWith('installations/') || cleanPath.startsWith('roles/') || cleanPath.startsWith('sessions/');
+    
+    if (isParseRestAPI) {
+      // For Parse REST API endpoints, use proper Parse format
+      const headers: Record<string, string> = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Content-Type": "application/json",
+        "Pragma": "no-cache",
+        "Referer": "http://94.249.71.89:9000/dashboard/35KBoSgoAK",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        "X-Parse-Application-Id": OPENSIGN_APP_ID,
+      };
+      
+      // Merge with existing headers
+      const combinedHeaders = { ...headers, ...(options.headers as Record<string, string> || {}) };
+      
+      // ✅ FIXED: For Parse REST API, use X-Parse-Session-Token header
+      if (sessionToken) {
+        combinedHeaders["X-Parse-Session-Token"] = sessionToken;
       }
+      
+      const requestOptions: RequestInit = {
+        ...options,
+        headers: combinedHeaders,
+        // Don't add OpenSign metadata to body for Parse REST API
+      };
+      
+      const response = await fetch(`${baseUrl}/${cleanPath}`, requestOptions);
+      return handleResponse<T>(response);
+    } else {
+      // For Cloud Functions, use the old format with metadata in body
+      
+      // Parse existing body if it's a string
+      let bodyData: Record<string, unknown> = {};
+      if (options.body && typeof options.body === 'string') {
+        try {
+          bodyData = JSON.parse(options.body);
+        } catch {
+          bodyData = {};
+        }
+      }
+      
+      // Add OpenSign metadata
+      const openSignData = {
+        ...bodyData,
+        _ApplicationId: "opensign",
+        _ClientVersion: "js6.1.1",
+        _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac"
+      };
+      
+      const baseHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        "X-Parse-Application-Id": OPENSIGN_APP_ID,
+        "Origin": "http://94.249.71.89:9000",
+        "Referer": "http://94.249.71.89:9000/",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+      };
+      
+      // Merge with existing headers
+      const combinedHeaders = { ...baseHeaders, ...(options.headers as Record<string, string> || {}) };
+      
+      // ✅ FIXED: Add session token in headers for cloud functions
+      if (sessionToken) {
+        combinedHeaders["sessionToken"] = sessionToken;
+      }
+      
+      const requestOptions: RequestInit = {
+        ...options,
+        method: options.method || "POST",
+        headers: combinedHeaders,
+        body: JSON.stringify(openSignData)
+      };
+      
+      const response = await fetch(`${baseUrl}/${cleanPath}`, requestOptions);
+      return handleResponse<T>(response);
     }
-    
-    // Add OpenSign metadata
-    const openSignData = {
-      ...bodyData,
-      _ApplicationId: "opensign",
-      _ClientVersion: "js6.1.1",
-      _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac"
-    };
-    
-    const baseHeaders: Record<string, string> = {
-      "Content-Type": "application/json",  // ✅ FIXED: Changed from text/plain to application/json
-      "X-Parse-Application-Id": OPENSIGN_APP_ID,
-      "Origin": "http://94.249.71.89:9000",
-      "Referer": "http://94.249.71.89:9000/",
-      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
-    };
-    
-    // Merge with existing headers
-    const combinedHeaders = { ...baseHeaders, ...(options.headers as Record<string, string> || {}) };
-    
-    // ✅ FIXED: Add session token in headers, not in body
-    if (sessionToken) {
-      combinedHeaders["sessionToken"] = sessionToken;
-    }
-    
-    const requestOptions: RequestInit = {
-      ...options,
-      method: options.method || "POST",
-      headers: combinedHeaders,
-      body: JSON.stringify(openSignData)
-    };
-    
-    const response = await fetch(`${baseUrl}/${cleanPath}`, requestOptions);
-    return handleResponse<T>(response);
   }
 };

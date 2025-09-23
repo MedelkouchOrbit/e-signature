@@ -579,8 +579,41 @@ export const teamsApiService = {
 
       // Try to get organization users first
       try {
-        // First get current user details to get organization ID
-        const userResponse = await openSignApiService.post("functions/getUserDetails", {}) as {
+        // Get session token for the direct fetch call
+        const sessionToken = openSignApiService.getSessionToken()
+        if (!sessionToken) {
+          console.warn('⚠️ No session token available for getUserDetails API')
+          return []
+        }
+
+        // First get current user details to get organization ID using direct fetch
+        const userHttpResponse = await fetch('http://94.249.71.89:9000/api/app/functions/getUserDetails', {
+          method: 'POST',
+          headers: {
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Content-Type': 'text/plain',
+            'Origin': 'http://94.249.71.89:9000',
+            'Pragma': 'no-cache',
+            'Referer': 'http://94.249.71.89:9000/dashboard/35KBoSgoAK',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+          },
+          body: JSON.stringify({
+            "_ApplicationId": "opensign",
+            "_ClientVersion": "js6.1.1",
+            "_InstallationId": "22ad0a9b-a8a2-400b-99f0-d979c070ea35",
+            "_SessionToken": sessionToken
+          })
+        })
+
+        if (!userHttpResponse.ok) {
+          console.warn(`⚠️ getUserDetails API HTTP error: ${userHttpResponse.status}`)
+          return []
+        }
+
+        const userResponse = await userHttpResponse.json() as {
           result?: {
             OrganizationId?: { objectId: string }
           }
@@ -673,20 +706,53 @@ export const teamsApiService = {
         return []
       }
       
-      const response = await openSignApiService.post("functions/getteams", {
-        active: true
-      }) as {
+      // Get session token for the direct fetch call
+      const sessionToken = openSignApiService.getSessionToken()
+      if (!sessionToken) {
+        console.warn('⚠️ No session token available for teams API')
+        return []
+      }
+      
+      // Use direct fetch to match the working curl format
+      const response = await fetch('http://94.249.71.89:9000/api/app/functions/getteams', {
+        method: 'POST',
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Content-Type': 'text/plain',
+          'Origin': 'http://94.249.71.89:9000',
+          'Pragma': 'no-cache',
+          'Referer': 'http://94.249.71.89:9000/dashboard/35KBoSgoAK',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify({
+          "active": true,
+          "_ApplicationId": "opensign",
+          "_ClientVersion": "js6.1.1",
+          "_InstallationId": "22ad0a9b-a8a2-400b-99f0-d979c070ea35",
+          "_SessionToken": sessionToken
+        })
+      })
+
+      if (!response.ok) {
+        console.warn(`⚠️ Teams API HTTP error: ${response.status}`)
+        return []
+      }
+
+      const result = await response.json() as {
         result?: Array<{ objectId: string; Name: string; IsActive: boolean }>
         error?: string
       }
       
-      if (response.error) {
-        console.warn(`⚠️ Teams API returned error: ${response.error}`)
+      if (result.error) {
+        console.warn(`⚠️ Teams API returned error: ${result.error}`)
         // Return empty array instead of throwing to gracefully handle missing teams
         return []
       }
       
-      const teams = response.result || []
+      const teams = result.result || []
       console.log(`🏢 Successfully fetched ${teams.length} teams`)
       
       return teams
@@ -782,7 +848,51 @@ export const teamsApiService = {
     try {
       console.log('👤 Fetching current user details...')
 
-      const response = await openSignApiService.post("functions/getUserDetails", {}) as {
+      // Get session token for the direct fetch call
+      const sessionToken = openSignApiService.getSessionToken()
+      if (!sessionToken) {
+        console.warn('⚠️ No session token available for getUserDetails API')
+        return {
+          organization: undefined,
+          tenantId: undefined,
+          role: undefined,
+          UserRole: undefined
+        }
+      }
+
+      // Use direct fetch to match the working curl format
+      const httpResponse = await fetch('http://94.249.71.89:9000/api/app/functions/getUserDetails', {
+        method: 'POST',
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Content-Type': 'text/plain',
+          'Origin': 'http://94.249.71.89:9000',
+          'Pragma': 'no-cache',
+          'Referer': 'http://94.249.71.89:9000/dashboard/35KBoSgoAK',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify({
+          "_ApplicationId": "opensign",
+          "_ClientVersion": "js6.1.1",
+          "_InstallationId": "22ad0a9b-a8a2-400b-99f0-d979c070ea35",
+          "_SessionToken": sessionToken
+        })
+      })
+
+      if (!httpResponse.ok) {
+        console.warn(`⚠️ getUserDetails API HTTP error: ${httpResponse.status}`)
+        return {
+          organization: undefined,
+          tenantId: undefined,
+          role: undefined,
+          UserRole: undefined
+        }
+      }
+
+      const response = await httpResponse.json() as {
         result?: {
           OrganizationId?: { objectId: string; Name: string }
           TenantId?: { objectId: string }

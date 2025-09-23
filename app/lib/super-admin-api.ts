@@ -749,7 +749,6 @@ export class SuperAdminApiService {
         order: '-createdAt',
         limit: 1000, // Increase limit to get more teams
         _method: 'GET',
-        _SessionToken: sessionToken
       })
 
       if (directResponse.error) {
@@ -765,7 +764,6 @@ export class SuperAdminApiService {
           order: '-createdAt',
           limit: 1000,
           _method: 'GET',
-          _SessionToken: sessionToken
         })
 
         if (fallbackResponse.error) {

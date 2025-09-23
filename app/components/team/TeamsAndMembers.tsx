@@ -77,9 +77,35 @@ export function TeamsAndMembers() {
       
       // First get teams - call the API directly like the working curl command
       console.log('🔍 Calling getteams API directly...')
-      const teamsResponse = await openSignApiService.post("functions/getteams", {
-        active: true
-      }) as {
+      
+      // Use direct fetch to match the working curl format
+      const teamsResponse = await fetch('http://94.249.71.89:9000/api/app/functions/getteams', {
+        method: 'POST',
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Content-Type': 'text/plain',
+          'Origin': 'http://94.249.71.89:9000',
+          'Pragma': 'no-cache',
+          'Referer': 'http://94.249.71.89:9000/dashboard/35KBoSgoAK',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify({
+          "active": true,
+          "_ApplicationId": "opensign",
+          "_ClientVersion": "js6.1.1",
+          "_InstallationId": "22ad0a9b-a8a2-400b-99f0-d979c070ea35",
+          "_SessionToken": sessionToken
+        })
+      })
+      
+      if (!teamsResponse.ok) {
+        throw new Error(`HTTP error! status: ${teamsResponse.status}`)
+      }
+      
+      const teamsApiResponse = await teamsResponse.json() as {
         result?: Array<{
           objectId: string
           Name: string
@@ -95,13 +121,13 @@ export function TeamsAndMembers() {
         error?: string
       }
       
-      console.log('📊 Direct teams API response:', teamsResponse)
+      console.log('📊 Direct teams API response:', teamsApiResponse)
       
-      if (teamsResponse.error) {
-        throw new Error(`Teams API error: ${teamsResponse.error}`)
+      if (teamsApiResponse.error) {
+        throw new Error(`Teams API error: ${teamsApiResponse.error}`)
       }
       
-      const teamsData = teamsResponse.result || []
+      const teamsData = teamsApiResponse.result || []
       console.log('📊 Teams data:', teamsData)
       console.log('📊 Teams data length:', teamsData.length)
       
