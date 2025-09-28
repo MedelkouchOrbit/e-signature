@@ -129,215 +129,37 @@ export default function CreateBulkSendPage() {
     }
   }, []);
 
-  // Load team members from contracts_Users class via OpenSign API
+  // Load team members using the bulk send API service (no static tokens)
   const loadTeamMembers = useCallback(async () => {
-    // Get session token
-    const getSessionToken = (): string => {
-      if (typeof window === "undefined") return "";
-      return (
-        localStorage.getItem("accesstoken") ||
-        localStorage.getItem("opensign_session_token") ||
-        ""
-      );
-    };
-
-    const sessionToken = getSessionToken();
     try {
       setLoadingTeamMembers(true);
-      console.log("🔄 Loading team members from OpenSign API...");
+      console.log("🔄 Loading team members via bulk send API service...");
 
-      // Force set the working session token
-      const { openSignApiService } = await import("@/app/lib/api-service");
-      const workingToken = "r:af90807d45364664e3707e4fe9a1a99c";
-      openSignApiService.setSessionToken(workingToken);
-      console.log("🔑 Set working session token for bulk send:", workingToken);
-
-      // Try to get organization members first
-      let teamMembers: OpenSignTeamMember[] = [];
-
-      try {
-        // First get teams to extract organization ID
-        console.log("🔍 Getting teams to find organization ID...");
-        const teamsResponse = await fetch(
-          "http://94.249.71.89:9000/api/app/functions/getteams",
-          {
-            method: "POST",
-            headers: {
-              Accept: "*/*",
-              "Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7",
-              "Cache-Control": "no-cache",
-              Connection: "keep-alive",
-              "Content-Type": "text/plain",
-              Origin: "http://94.249.71.89:9000",
-              Pragma: "no-cache",
-              Referer: "http://94.249.71.89:9000/dashboard/35KBoSgoAK",
-              "User-Agent":
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            },
-            body: JSON.stringify({
-              active: true,
-              _ApplicationId: "opensign",
-              _ClientVersion: "js6.1.1",
-              _InstallationId: "22ad0a9b-a8a2-400b-99f0-d979c070ea35",
-              _SessionToken: sessionToken,
-            }),
-          }
-        );
-
-        if (!teamsResponse.ok) {
-          throw new Error(`HTTP error! status: ${teamsResponse.status}`);
-        }
-
-        const teamsApiResponse = (await teamsResponse.json()) as {
-          result?: Array<{
-            objectId: string;
-            Name: string;
-            IsActive: boolean;
-            OrganizationId?: {
-              __type: string;
-              className: string;
-              objectId: string;
-            };
-            createdAt: string;
-            updatedAt: string;
-          }>;
-          error?: string;
-        };
-
-        console.log("📊 Direct teams API response:", teamsApiResponse);
-
-        if (teamsApiResponse.error) {
-          throw new Error(`Teams API error: ${teamsApiResponse.error}`);
-        }
-
-        if (
-          teamsApiResponse.result &&
-          teamsApiResponse.result.length > 0 &&
-          teamsApiResponse.result[0].OrganizationId
-        ) {
-          const organizationId =
-            teamsApiResponse.result[0].OrganizationId.objectId;
-          console.log("🏢 Found organization ID:", organizationId);
-
-          // Get organization members
-          console.log("👥 Getting organization members...");
-          const membersResponse = (await fetch(`http://94.249.71.89:9000/api/app/functions/getuserlistbyorg`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'text/plain',
-                },
-                body: JSON.stringify({
-                  organizationId: organizationId,
-                  _ApplicationId: 'opensign',
-                  _ClientVersion: 'js6.1.1',
-                  _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
-                  _SessionToken: sessionToken,
-                }),
-              })) as {
-            result?: Array<{
-              objectId: string;
-              Name?: string;
-              Email?: string;
-              UserRole?: string;
-              UserId?: { name?: string; email?: string };
-            }>;
-            error?: string;
-          };
-
-          if (membersResponse.result) {
-            teamMembers = membersResponse.result.map((member) => ({
-              objectId: member.objectId,
-              Name: member.Name || member.UserId?.name || "Unknown User",
-              Email:
-                member.Email || member.UserId?.email || "unknown@example.com",
-              UserRole: member.UserRole || "User",
-              IsDisabled: false,
-              TeamIds: [],
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }));
-            console.log(`✅ Loaded ${teamMembers.length} organization members`);
-          }
-        }
-      } catch (orgError) {
-        console.warn("⚠️ Organization members fetch failed:", orgError);
-      }
-
-      // Fallback: Use getsigners to get contacts
-      if (teamMembers.length === 0) {
-        console.log("🔄 Falling back to getsigners...");
-        const baseUrl = "http://94.249.71.89:9000/api/app";
-        const signersResponse = await fetch(`${baseUrl}/functions/getsigners`, {
-          method: "POST",
-          headers: {
-            Accept: "application/json, text/plain, */*",
-            "Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-            "Content-Type": "application/json",
-            Origin: "http://94.249.71.89:9000",
-            Pragma: "no-cache",
-            Referer: "http://94.249.71.89:9000/form/8mZzFxbG1z",
-            "User-Agent":
-              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            "X-Parse-Application-Id": "opensign",
-            "X-Parse-Session-Token": sessionToken,
-          },
-          body: JSON.stringify({
-            search: "",
-          }),
-        });
-
-        if (!signersResponse.ok) {
-          throw new Error(`HTTP error! status: ${signersResponse.status}`);
-        }
-
-        const data = (await signersResponse.json()) as {
-          result?: Array<{
-            objectId: string;
-            Name: string;
-            Email: string;
-            UserId: {
-              objectId: string;
-            };
-            TenantId: {
-              objectId: string;
-            };
-          }>;
-          error?: string;
-        };
-
-        if (data.error) {
-          console.warn(`⚠️ getsigners API returned error: ${data.error}`);
-          return [];
-        }
-
-        if (data.result) {
-          teamMembers = data.result
-            .filter((contact) => contact.Email && contact.Name)
-            .map((contact) => ({
-              objectId: contact.objectId,
-              Name: contact.Name,
-              Email: contact.Email,
-              UserRole: contact?.UserRole || "User",
-              IsDisabled: false,
-              TeamIds: [],
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }));
-          console.log(
-            `✅ Loaded ${teamMembers.length} contacts from getsigners`
-          );
-        }
-      }
+      // Use the new getTeamMembers method from bulk send API service
+      const members = await bulkSendApiService.getTeamMembers();
+      
+      // Convert to the expected interface
+      const teamMembers: OpenSignTeamMember[] = members.map(member => ({
+        objectId: member.objectId,
+        Name: member.Name,
+        Email: member.Email,
+        UserRole: member.UserRole,
+        IsDisabled: member.IsDisabled,
+        TeamIds: [], // Convert from string[] to proper TeamIds format
+        createdAt: member.createdAt,
+        updatedAt: member.updatedAt,
+        Company: member.Company
+      }));
 
       setTeamMembers(teamMembers);
-      console.log(
-        `✅ Total team members available for assignment: ${teamMembers.length}`
-      );
+      console.log(`✅ Successfully loaded ${teamMembers.length} team members`);
+      
+      if (teamMembers.length === 0) {
+        toast.warning("No team members found. Please add contacts to your organization first.");
+      }
     } catch (error) {
       console.error("❌ Error loading team members:", error);
-      toast.error("Failed to load team members");
+      toast.error("Failed to load team members. Please check your login status.");
       setTeamMembers([]); // Set empty array on error
     } finally {
       setLoadingTeamMembers(false);

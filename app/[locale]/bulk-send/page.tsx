@@ -45,9 +45,19 @@ export default function BulkSendPage() {
     try {
       setLoading(true)
       setError(null)
+      console.log('🔄 Loading bulk sends from contracts_Document collection...')
       const bulkSendsResponse = await bulkSendApiService.getBulkSends()
+      console.log('📦 Loaded bulk sends:', bulkSendsResponse.length)
+      console.log('📄 Bulk sends data:', bulkSendsResponse.map(bs => ({
+        id: bs.id,
+        name: bs.name,
+        status: bs.status,
+        totalRecipients: bs.totalRecipients,
+        completedCount: bs.completedCount
+      })))
       setBulkSends(bulkSendsResponse)
     } catch (err) {
+      console.error('❌ Error loading bulk sends:', err)
       const errorMessage = err instanceof Error ? err.message : t("messages.loadFailed")
       setError(errorMessage)
       toast.error(errorMessage)
@@ -91,6 +101,14 @@ export default function BulkSendPage() {
     return matchesSearch && matchesStatus
   })
 
+  console.log('🔍 Filtering results:', {
+    totalBulkSends: bulkSends?.length || 0,
+    filteredCount: filteredBulkSends.length,
+    searchQuery,
+    statusFilter,
+    filteredItems: filteredBulkSends.map(bs => ({ id: bs.id, name: bs.name, status: bs.status }))
+  })
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -127,13 +145,15 @@ export default function BulkSendPage() {
               {t("subtitle")}
             </p>
           </div>
-          <Button 
-            onClick={() => router.push('/bulk-send/create')}
-            className="text-white bg-green-600 hover:bg-green-700"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            {t("createBulkSend")}
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => router.push('/bulk-send/create')}
+              className="flex items-center gap-2 text-white bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="w-4 h-4" />
+              {t("createBulkSend")}
+            </Button>
+          </div>
         </div>
 
         {/* Filters and Search */}

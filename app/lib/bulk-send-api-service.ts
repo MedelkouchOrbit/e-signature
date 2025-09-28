@@ -115,22 +115,206 @@ interface OpenSignDocument {
   createdAt: string
   updatedAt: string
   CreatedBy?: Record<string, unknown>
+  // Bulk send fields (added to MongoDB collection)
+  bulk_send_id?: string
+  bulk_send_name?: string
+  is_bulk_send?: boolean
+  bulk_total_recipients?: number
+  bulk_order_index?: number
+  bulk_created_at?: string
+  SentToOthers?: boolean
+  DocSentAt?: string
 }
 
 class BulkSendApiService {
   
   /**
-   * Get bulk sends - Uses document pattern matching since contracts_BulkSend class doesn't exist yet
+   * Get bulk sends from MongoDB contracts_Document collection
+   * Uses the exact curl command structure to find all bulk send documents
    */
   async getBulkSends(): Promise<BulkSend[]> {
     try {
-      // Try to get real data first, but fallback to mock data if server is unavailable
-      return await this.getMockBulkSends()
+      
+
+      // Get current user for proper filtering
+      const currentUser = await getCurrentUser()
+      console.log('� Current user:', currentUser?.id ? `User ${currentUser.id}` : 'Not authenticated')
+
+      // Get bulk send documents with CreatedBy field
+      
+      const whereQuery = {
+        is_bulk_send: true,
+        ...(currentUser?.id && {
+          CreatedBy: {
+            __type: 'Pointer',
+            className: '_User',
+            objectId: currentUser.id
+          }
+        })
+      }
+
+      const queryParams = new URLSearchParams({
+        where: JSON.stringify(whereQuery),
+        limit: '1000',
+        include: 'ExtUserPtr,Signers'
+      })
+
+      const documentsResponse = await openSignApiService.get<OpenSignApiResponse<OpenSignDocument>>(
+        `classes/contracts_Document?${queryParams.toString()}`
+      )
+
+      console.log(`� Found ${documentsResponse?.results?.length || 0} documents with CreatedBy`)
+
+      // Also get bulk send documents without CreatedBy field
+      
+      const whereQueryNoCreatedBy = {
+        is_bulk_send: true,
+        CreatedBy: {
+          $exists: false
+        }
+      }
+
+      const queryParamsNoCreatedBy = new URLSearchParams({
+        where: JSON.stringify(whereQueryNoCreatedBy),
+        limit: '1000',
+        include: 'ExtUserPtr,Signers'
+      })
+
+      const documentsResponseNoCreatedBy = await openSignApiService.get<OpenSignApiResponse<OpenSignDocument>>(
+        `classes/contracts_Document?${queryParamsNoCreatedBy.toString()}`
+      )
+
+
+
+
+
+      // Combine all documents
+      const allBulkSendDocs = [
+        ...(documentsResponse?.results || []),
+        ...(documentsResponseNoCreatedBy?.results || [])
+      ]
+
+      if (allBulkSendDocs.length === 0) {
+        return []
+      }
+
+      // Group documents by bulk_send_id
+      const bulkSendGroups = new Map<string, OpenSignDocument[]>()
+      
+      for (const doc of allBulkSendDocs) {
+        const bulkSendId = doc.bulk_send_id
+        if (!bulkSendId) continue
+
+        if (!bulkSendGroups.has(bulkSendId)) {
+          bulkSendGroups.set(bulkSendId, [])
+        }
+        bulkSendGroups.get(bulkSendId)!.push(doc)
+      }
+
+      // Convert groups to BulkSend objects
+      const bulkSends: BulkSend[] = []
+
+      for (const [bulkSendId, docs] of bulkSendGroups) {
+        const bulkSend = this.convertMongoBulkSend(bulkSendId, docs)
+        if (bulkSend) {
+          bulkSends.push(bulkSend)
+        } else {
+
+        }
+      }
+
+
+      
+      return bulkSends.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     } catch (error) {
-      console.error('Error fetching bulk sends:', error)
-      // Return mock data when server is unavailable
-      return this.getFallbackMockData()
+      console.error('Error fetching bulk sends from MongoDB:', error)
+      throw error
     }
+  }
+
+  /**
+   * Convert MongoDB document group to BulkSend object
+   */
+  private convertMongoBulkSend(bulkSendId: string, docs: OpenSignDocument[]): BulkSend | null {
+    if (!docs || docs.length === 0) return null
+
+    const firstDoc = docs[0]
+    
+
+    
+    // Calculate status based on document states
+    const completedCount = docs.filter(doc => doc.IsCompleted === true).length
+    const sentCount = docs.filter(doc => doc.SentToOthers === true || doc.DocSentAt).length
+    
+    let status: BulkSend['status'] = 'draft'
+    if (completedCount === docs.length) {
+      status = 'completed'
+    } else if (sentCount > 0) {
+      status = 'sending'
+    }
+
+
+
+    // Create signers array from documents
+    const signers: BulkSendSigner[] = docs.map((doc, index) => {
+      // Extract signer info from Placeholders or Signers
+      let signerName = 'Unknown'
+      let signerEmail = ''
+      
+      if (doc.Placeholders && doc.Placeholders.length > 0) {
+        const placeholder = doc.Placeholders[0]
+        if (placeholder.email) {
+          signerEmail = placeholder.email
+          // Extract name from email or document name
+          signerName = doc.Name?.split(' - ').pop() || placeholder.email.split('@')[0]
+        }
+      }
+
+      return {
+        id: `signer-${doc.objectId}`,
+        name: signerName,
+        email: signerEmail,
+        role: 'signer',
+        order: doc.bulk_order_index || index + 1,
+        status: doc.IsCompleted ? 'signed' : (doc.SentToOthers ? 'sent' : 'pending'),
+        sentAt: doc.DocSentAt,
+        signedAt: doc.IsCompleted ? doc.updatedAt : undefined,
+        documentId: doc.objectId
+      }
+    })
+
+    // Parse the bulk_created_at date properly
+    let createdAt = firstDoc.createdAt
+    if (firstDoc.bulk_created_at) {
+      if (typeof firstDoc.bulk_created_at === 'object' && 'iso' in firstDoc.bulk_created_at) {
+        createdAt = (firstDoc.bulk_created_at as {iso: string}).iso
+      } else if (typeof firstDoc.bulk_created_at === 'string') {
+        createdAt = firstDoc.bulk_created_at
+      }
+    }
+
+    const bulkSend = {
+      id: bulkSendId,
+      name: firstDoc.bulk_send_name || `Bulk Send ${bulkSendId}`,
+      templateId: firstDoc.TemplateId?.objectId || '',
+      templateName: 'Document Template',
+      status,
+      totalRecipients: docs.length,
+      sentCount,
+      completedCount,
+      failedCount: 0,
+      signers,
+      sendInOrder: false,
+      createdAt,
+      updatedAt: firstDoc.updatedAt,
+      createdBy: firstDoc.CreatedBy && 'objectId' in firstDoc.CreatedBy 
+        ? String(firstDoc.CreatedBy.objectId) 
+        : 'system',
+      documentIds: docs.map(doc => doc.objectId)
+    }
+
+    
+    return bulkSend
   }
 
   /**
@@ -437,7 +621,11 @@ class BulkSendApiService {
       
       console.log('✅ Authentication successful:', { sessionToken: sessionToken.substring(0, 10) + '...', userId: currentUser.id })
 
-      const documentsToCreate = data.signers.map((signer) => {
+      // Generate a unique bulk send ID
+      const bulkSendId = `bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const bulkCreatedAt = new Date().toISOString()
+
+      const documentsToCreate = data.signers.map((signer, index) => {
         // Update placeholders with signer information
         const updatedPlaceholders = template.Placeholders?.map((placeholder: OpenSignPlaceholder) => ({
           ...placeholder,
@@ -451,7 +639,7 @@ class BulkSendApiService {
         })) || []
 
         return {
-          Name: `Bulk Send: ${data.name} - ${signer.name}`,
+          Name: `${data.name} - ${signer.name}`,
           Description: data.message || `Bulk send: ${data.name}`,
           Status: 'waiting',
           URL: template.URL,
@@ -475,14 +663,25 @@ class BulkSendApiService {
           Type: 'template',
           IsArchive: false,
           Note: data.message || `Bulk send: ${data.name}`,
-          SendinOrder: data.sendInOrder
+          SendinOrder: data.sendInOrder,
+          
+          // ✅ BULK SEND METADATA - This is what was missing!
+          is_bulk_send: true,
+          bulk_send_id: bulkSendId,
+          bulk_send_name: data.name,
+          bulk_total_recipients: data.signers.length,
+          bulk_order_index: index + 1,
+          bulk_created_at: {
+            __type: 'Date',
+            iso: bulkCreatedAt
+          }
           // ExtUserPtr and CreatedBy will be automatically set by backend
           // ACL will be automatically managed by backend
         }
       })
 
       // Create documents directly using Parse classes API since createBatchDocs doesn't exist
-      const createdDocuments = []
+      const createdDocuments: Array<{objectId: string; createdAt: string; Name: string}> = []
       
       for (const doc of documentsToCreate) {
         try {
@@ -491,7 +690,7 @@ class BulkSendApiService {
             doc
           )
           createdDocuments.push({
-            ...doc,
+            Name: doc.Name,
             objectId: response.objectId,
             createdAt: response.createdAt
           })
@@ -503,7 +702,7 @@ class BulkSendApiService {
 
       // Create and return bulk send object
       const bulkSend: BulkSend = {
-        id: `bulk-${data.name.replace(/\s+/g, '-').toLowerCase()}`,
+        id: bulkSendId,
         name: data.name,
         templateId: data.templateId,
         templateName: template.Name,
@@ -519,14 +718,18 @@ class BulkSendApiService {
           role: signer.role,
           order: signer.order,
           status: 'sent',
-          sentAt: new Date().toISOString()
+          sentAt: bulkCreatedAt,
+          documentId: createdDocuments[index]?.objectId
         })),
         sendInOrder: data.sendInOrder,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: '', // Will be set by backend
-        documentIds: [] // Will be populated by backend
+        createdAt: bulkCreatedAt,
+        updatedAt: bulkCreatedAt,
+        createdBy: currentUser.id,
+        documentIds: createdDocuments.map(doc => doc.objectId)
       }
+
+      console.log('✅ Created bulk send with ID:', bulkSendId)
+      console.log('📄 Created documents:', createdDocuments.length)
 
       return bulkSend
     } catch (error) {
@@ -536,10 +739,47 @@ class BulkSendApiService {
   }
 
   /**
+   * Update an existing document to add bulk send metadata
+   * This is useful for fixing documents created without bulk send fields
+   */
+  async updateDocumentAsBulkSend(documentId: string, bulkSendName: string): Promise<void> {
+    try {
+      console.log('🔄 Updating document as bulk send:', documentId)
+      
+      const bulkSendId = `bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const bulkCreatedAt = new Date().toISOString()
+      
+      const updateData = {
+        is_bulk_send: true,
+        bulk_send_id: bulkSendId,
+        bulk_send_name: bulkSendName,
+        bulk_total_recipients: 1,
+        bulk_order_index: 1,
+        bulk_created_at: {
+          __type: 'Date',
+          iso: bulkCreatedAt
+        }
+      }
+      
+      await openSignApiService.put(
+        `classes/contracts_Document/${documentId}`,
+        updateData
+      )
+      
+      console.log('✅ Successfully updated document with bulk send metadata')
+    } catch (error) {
+      console.error('❌ Error updating document:', error)
+      throw error
+    }
+  }
+
+  /**
    * Get template by ID from contracts_Template class
    */
   private async getTemplateById(templateId: string): Promise<OpenSignTemplate | null> {
     try {
+      console.log('🔍 Fetching template with ID:', templateId)
+      
       const queryParams = new URLSearchParams({
         include: 'CreatedBy'
       })
@@ -547,9 +787,17 @@ class BulkSendApiService {
       const response = await openSignApiService.get<OpenSignTemplate>(
         `classes/contracts_Template/${templateId}?${queryParams.toString()}`
       )
+      
+      console.log('✅ Template found:', response?.Name || 'Unknown')
       return response
     } catch (error) {
-      console.error('Error fetching template:', error)
+      console.error('❌ Error fetching template:', error)
+      console.error('Template ID that failed:', templateId)
+      
+      if (error instanceof Error && error.message.includes('Invalid session token')) {
+        console.error('🔑 Session token is invalid. Please log in again to get a fresh token.')
+      }
+      
       return null
     }
   }
@@ -756,6 +1004,237 @@ class BulkSendApiService {
       })
     } catch (error) {
       console.error('Error resending document:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get available tenants for bulk send
+   */
+  async getTenants(): Promise<Array<{id: string; name: string; email: string}>> {
+    try {
+      console.log('🏢 Fetching available tenants...')
+      
+      const tenantsResponse = await openSignApiService.get('classes/partners_Tenant', {
+        where: {
+          IsActive: true
+        },
+        limit: 100,
+        order: 'TenantName'
+      }) as OpenSignApiResponse<{
+        objectId: string
+        TenantName: string
+        EmailAddress: string
+        IsActive: boolean
+      }>
+
+      if (!tenantsResponse || !tenantsResponse.results) {
+        console.log('No tenants found')
+        return []
+      }
+
+      const tenants = tenantsResponse.results.map(tenant => ({
+        id: tenant.objectId,
+        name: tenant.TenantName || 'Unnamed Tenant',
+        email: tenant.EmailAddress
+      }))
+
+      console.log(`✅ Found ${tenants.length} active tenants`)
+      return tenants
+
+    } catch (error) {
+      console.error('Error fetching tenants:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get team members/signers using current session token (no static tokens)
+   * This replaces the complex logic in the create page
+   */
+  async getTeamMembers(): Promise<Array<{
+    objectId: string
+    Name: string
+    Email: string
+    UserRole: string
+    IsDisabled: boolean
+    TeamIds: string[]
+    createdAt: string
+    updatedAt: string
+    Company?: string
+  }>> {
+    try {
+      console.log('🔄 Loading team members using current session token...')
+
+      // Get current session token from localStorage
+      const currentToken = typeof window !== 'undefined' ? 
+        (localStorage.getItem('accesstoken') || localStorage.getItem('opensign_session_token')) : null
+      
+      if (!currentToken) {
+        console.error('❌ No session token available for team members')
+        throw new Error('Please log in to load team members')
+      }
+
+      console.log('🔑 Using session token:', `${currentToken.substring(0, 10)}...`)
+
+      // Try multiple approaches to get team members
+      let teamMembers: Array<{
+        objectId: string
+        Name: string
+        Email: string
+        UserRole: string
+        IsDisabled: boolean
+        TeamIds: string[]
+        createdAt: string
+        updatedAt: string
+        Company?: string
+      }> = []
+
+      // Approach 1: Try getsigners function (most reliable)
+      try {
+        console.log('📊 Approach 1: Using getsigners function...')
+        
+        const signersResponse = await fetch('http://94.249.71.89:9000/api/app/functions/getsigners', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json',
+            'X-Parse-Application-Id': 'opensign',
+            'X-Parse-Session-Token': currentToken,
+          },
+          body: JSON.stringify({
+            search: ''
+          })
+        })
+
+        if (signersResponse.ok) {
+          const data = await signersResponse.json() as {
+            result?: Array<{
+              objectId: string
+              Name: string
+              Email: string
+              UserId?: { objectId: string }
+              TenantId?: { objectId: string }
+            }>
+            error?: string
+          }
+
+          if (data.result && !data.error) {
+            teamMembers = data.result
+              .filter(contact => contact.Email && contact.Name)
+              .map(contact => ({
+                objectId: contact.objectId,
+                Name: contact.Name,
+                Email: contact.Email,
+                UserRole: 'User',
+                IsDisabled: false,
+                TeamIds: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }))
+            
+            console.log(`✅ Loaded ${teamMembers.length} contacts from getsigners`)
+            return teamMembers
+          } else {
+            console.log('⚠️ getsigners returned error:', data.error)
+          }
+        } else {
+          console.log('⚠️ getsigners request failed:', signersResponse.status)
+        }
+      } catch (err) {
+        console.log('⚠️ getsigners approach failed:', err)
+      }
+
+      // Approach 2: Try organization members via getteams -> getuserlistbyorg
+      try {
+        console.log('📊 Approach 2: Getting organization members...')
+        
+        const teamsResponse = await fetch('http://94.249.71.89:9000/api/app/functions/getteams', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain',
+          },
+          body: JSON.stringify({
+            active: true,
+            _ApplicationId: 'opensign',
+            _ClientVersion: 'js6.1.1',
+            _InstallationId: '22ad0a9b-a8a2-400b-99f0-d979c070ea35',
+            _SessionToken: currentToken,
+          })
+        })
+
+        if (teamsResponse.ok) {
+          const teamsData = await teamsResponse.json() as {
+            result?: Array<{
+              objectId: string
+              Name: string
+              OrganizationId?: {
+                __type: string
+                className: string
+                objectId: string
+              }
+            }>
+            error?: string
+          }
+
+          if (teamsData.result?.[0]?.OrganizationId) {
+            const orgId = teamsData.result[0].OrganizationId.objectId
+            console.log('🏢 Found organization ID:', orgId)
+
+            const membersResponse = await fetch('http://94.249.71.89:9000/api/app/functions/getuserlistbyorg', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'text/plain',
+              },
+              body: JSON.stringify({
+                organizationId: orgId,
+                _ApplicationId: 'opensign',
+                _ClientVersion: 'js6.1.1',
+                _InstallationId: 'ef44e42e-e0a3-44a0-a359-90c26af8ffac',
+                _SessionToken: currentToken,
+              })
+            })
+
+            if (membersResponse.ok) {
+              const membersData = await membersResponse.json() as {
+                result?: Array<{
+                  objectId: string
+                  Name?: string
+                  Email?: string
+                  UserRole?: string
+                  UserId?: { name?: string; email?: string }
+                }>
+                error?: string
+              }
+
+              if (membersData.result && !membersData.error) {
+                teamMembers = membersData.result.map(member => ({
+                  objectId: member.objectId,
+                  Name: member.Name || member.UserId?.name || 'Unknown User',
+                  Email: member.Email || member.UserId?.email || '',
+                  UserRole: member.UserRole || 'User',
+                  IsDisabled: false,
+                  TeamIds: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                }))
+                
+                console.log(`✅ Loaded ${teamMembers.length} organization members`)
+                return teamMembers
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.log('⚠️ Organization members approach failed:', err)
+      }
+
+      // If both approaches fail, return empty array
+      console.log('⚠️ All approaches failed, returning empty team members list')
+      return []
+
+    } catch (error) {
+      console.error('❌ Error loading team members:', error)
       throw error
     }
   }

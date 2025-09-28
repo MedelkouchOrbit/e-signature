@@ -159,7 +159,12 @@ export const openSignApiService = {
       // Add query parameters
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          queryParams.append(key, String(value));
+          // Special handling for 'where' parameter - it needs to be JSON stringified
+          if (key === 'where' && typeof value === 'object') {
+            queryParams.append(key, JSON.stringify(value));
+          } else {
+            queryParams.append(key, String(value));
+          }
         }
       });
       
