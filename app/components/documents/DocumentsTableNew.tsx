@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { 
   Search, 
   Filter, 
@@ -108,6 +109,83 @@ const extractSignersFromDocument = (document: Document) => {
   
   console.log('No placeholders found, returning empty array');
   return [];
+};
+
+// Helper function to get signers from getsigners API
+const getSignersFromAPI = async (): Promise<Array<{ id: string; name: string; email: string; userId: string }>> => {
+  try {
+    console.log('📇 Fetching signers from getsigners API...')
+    
+    // Get session token
+    const getSessionToken = (): string => {
+      if (typeof window === 'undefined') return '';
+      return localStorage.getItem("accesstoken") || 
+             localStorage.getItem("opensign_session_token") || 
+             "";
+    };
+    
+    const sessionToken = getSessionToken();
+    
+    const baseUrl = "http://94.249.71.89:9000/api/app";
+    const response = await fetch(`${baseUrl}/functions/getsigners`, {
+      method: "POST",
+      headers: {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Content-Type": "application/json",
+        "Origin": "http://94.249.71.89:9000",
+        "Pragma": "no-cache",
+        "Referer": "http://94.249.71.89:9000/form/8mZzFxbG1z",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        "X-Parse-Application-Id": "opensign",
+        "X-Parse-Session-Token": sessionToken,
+      },
+      body: JSON.stringify({
+        search: ""
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json() as {
+      result?: Array<{
+        objectId: string
+        Name: string
+        Email: string
+        UserId: {
+          objectId: string
+        }
+        TenantId: {
+          objectId: string
+        }
+      }>
+      error?: string
+    }
+    
+    if (data.error) {
+      console.warn(`⚠️ getsigners API returned error: ${data.error}`)
+      return []
+    }
+    
+    const signers = (data.result || []).map(contact => ({
+      id: contact.objectId,
+      name: contact.Name,
+      email: contact.Email,
+      userId: contact?.CreatedBy?.objectId // Use UserId.objectId as contactId for the signing route
+    }));
+    
+    console.log(`📇 Successfully fetched ${signers.length} signers from API`)
+    console.log('Signers data:', signers)
+    
+    return signers
+  } catch (error) {
+    console.error('❌ Error fetching signers from API:', error)
+    return []
+  }
 };
 
 // User avatar with initials component
@@ -438,6 +516,28 @@ export function DocumentsTable() {
   // Local state
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
   
+  // Signer selection modal state for superadmin
+  const [isSignerModalOpen, setIsSignerModalOpen] = useState(false)
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
+  
+  // Check if current user is superadmin
+  const getCurrentUserEmail = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const authStorage = localStorage.getItem('auth-storage')
+      if (authStorage) {
+        try {
+          const parsed = JSON.parse(authStorage)
+          return parsed?.state?.user?.email || null
+        } catch {
+          return null
+        }
+      }
+    }
+    return null
+  }, [])
+  
+  const isSuperAdmin = getCurrentUserEmail() === 'superadmin@superadmin.com'
+  
   // Check user permissions for signing documents (temporarily disabled due to type conflicts)
   // const { permissions } = useDocumentPermissions(documents)
   
@@ -582,6 +682,16 @@ export function DocumentsTable() {
       // Enhanced sign handler following OpenSign patterns
       console.log('🖊️ Initiating document signing:', document.name);
       
+      const currentUserEmail = getCurrentUserEmail()
+      
+      // Special handling for superadmin - show signer selection modal
+      if (currentUserEmail === 'superadmin@superadmin.com') {
+        console.log('🔑 Superadmin detected - opening signer selection modal')
+        setSelectedDocument(document)
+        setIsSignerModalOpen(true)
+        return
+      }
+      
       // Check if user can sign (enhanced validation)
       if (!document.canUserSign) {
         toast({
@@ -605,10 +715,7 @@ export function DocumentsTable() {
       // Check if sendInOrder is enabled and if it's the user's turn
       if (document.sendInOrder) {
         const currentUserSigner = document.signers.find(signer => 
-          signer.email === /* Get from auth or localStorage */
-          (typeof window !== 'undefined' ? 
-            JSON.parse(localStorage.getItem('auth-storage') || '{}')?.state?.user?.email : 
-            null)
+          signer.email === currentUserEmail
         );
         
         if (currentUserSigner) {
@@ -628,10 +735,24 @@ export function DocumentsTable() {
         }
       }
       
-      // Navigate to signing page (OpenSign style: /recipientSignPdf or /placeHolderSign)
-      const signUrl = document.isCurrentUserCreator 
-        ? `/documents/${document.objectId}/placeholder-sign`  // For document creator (PlaceHolderSign)
-        : `/documents/${document.objectId}/sign`;              // For recipients (SignyourselfPdf)
+      // Get current user's contact ID from the document signers
+      const currentUserSigner = document.signers.find(signer => 
+        signer.email === currentUserEmail
+      );
+      
+      const contactId = currentUserSigner?.contactId || currentUserSigner?.id;
+      
+      if (!contactId) {
+        toast({
+          title: "Contact ID Missing",
+          description: "Unable to identify your signing credentials. Please refresh and try again.",
+          variant: "destructive"
+        })
+        return
+      }
+      
+      // Navigate to new OpenSign-style signing page
+      const signUrl = `/load/recipientSignPdf/${document.objectId}/${contactId}`;
       
       console.log(`📋 Navigating to: ${signUrl}`);
       router.push(signUrl)
@@ -644,7 +765,60 @@ export function DocumentsTable() {
         variant: "destructive"
       })
     }
-  }, [router, toast])
+  }, [router, toast, getCurrentUserEmail, setSelectedDocument, setIsSignerModalOpen])
+  
+  // Handle signer selection for superadmin
+  const handleSignerSelection = useCallback(async (signer: { id: string; name: string; email: string }) => {
+    if (!selectedDocument) return
+    
+    console.log('👤 Signer selected:', signer.name, 'Contact ID:', signer.id)
+    
+    try {
+      // Get the real signers from the API to find the TenantId
+      const apiSigners = await getSignersFromAPI()
+      const matchingSigner = apiSigners.find(apiSigner => 
+        apiSigner.email === signer.email || apiSigner.id === signer.id
+      )
+      
+      if (matchingSigner) {
+        // Use the TenantId.objectId from the API response as contactId
+        const contactId = matchingSigner.userId
+        console.log('✅ Found matching signer, using TenantId.objectId as contactId:', contactId)
+        
+        const signUrl = `/load/recipientSignPdf/${selectedDocument.objectId}/${contactId}`
+        console.log(`📋 Navigating to: ${signUrl}`)
+        
+        // Close modal and navigate
+        setIsSignerModalOpen(false)
+        setSelectedDocument(null)
+        router.push(signUrl)
+      } else {
+        // Fallback to using the signer's id if no match found
+        console.log('⚠️ No matching signer found in API, using fallback contactId:', signer.id)
+        const contactId = signer.id
+        const signUrl = `/load/recipientSignPdf/${selectedDocument.objectId}/${contactId}`
+        
+        console.log(`📋 Navigating to: ${signUrl}`)
+        
+        // Close modal and navigate
+        setIsSignerModalOpen(false)
+        setSelectedDocument(null)
+        router.push(signUrl)
+      }
+    } catch (error) {
+      console.error('❌ Error getting signer info from API:', error)
+      // Fallback to using the signer's id
+      const contactId = signer.id
+      const signUrl = `/load/recipientSignPdf/${selectedDocument.objectId}/${contactId}`
+      
+      console.log(`📋 Fallback navigation to: ${signUrl}`)
+      
+      // Close modal and navigate
+      setIsSignerModalOpen(false)
+      setSelectedDocument(null)
+      router.push(signUrl)
+    }
+  }, [selectedDocument, router, setIsSignerModalOpen, setSelectedDocument])
   
   const handleReminder = useCallback(async (document: Document) => {
     try {
@@ -870,7 +1044,7 @@ export function DocumentsTable() {
                             </div>
                           </TooltipProvider>
                         ) : (
-                          <span className="text-gray-400">- (No signers: {JSON.stringify(document.signers)})</span>
+                          <span className="text-gray-400">No signers</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
@@ -1108,6 +1282,56 @@ export function DocumentsTable() {
           </>
         )}
       </CardContent>
+      
+      {/* Signer Selection Modal for Superadmin */}
+      {isSuperAdmin && selectedDocument && (
+        <Dialog open={isSignerModalOpen} onOpenChange={setIsSignerModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Select Signer</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">
+                Choose which signer to sign as for &ldquo;{selectedDocument.name}&rdquo;:
+              </p>
+              <div className="space-y-2">
+                {/* Extract signers from the document response */}
+                {extractSignersFromDocument(selectedDocument).map((signer) => (
+                  <Button
+                    key={signer.id}
+                    variant="outline"
+                    className="justify-start w-full h-auto p-4"
+                    onClick={() => handleSignerSelection(signer)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <UserAvatar 
+                        name={signer.name} 
+                        email={signer.email}
+                        size="md"
+                      />
+                      <div className="text-left">
+                        <div className="font-medium">{signer.name}</div>
+                        <div className="text-sm text-gray-500">{signer.email}</div>
+                        <div className="text-xs text-gray-400">ID: {signer.id}</div>
+                      </div>
+                    </div>
+                  </Button>
+                ))}
+              </div>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setIsSignerModalOpen(false)
+                  setSelectedDocument(null)
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   )
 }

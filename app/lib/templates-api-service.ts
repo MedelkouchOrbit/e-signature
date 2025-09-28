@@ -992,20 +992,53 @@ export const contactsApiService = {
     try {
       console.log('📇 Fetching contacts from OpenSign backend...')
       
-      // Use the getsigners function to get all contacts
-      const response = await openSignApiService.post("functions/getsigners", {
-        search: '' // Empty search to get all contacts
-      }) as {
+      // Get session token for authentication
+      const getSessionToken = (): string => {
+        if (typeof window === 'undefined') return '';
+        return localStorage.getItem("accesstoken") || 
+               localStorage.getItem("opensign_session_token") || 
+               "";
+      };
+      
+      const sessionToken = getSessionToken();
+      
+      // Make direct API call to getsigners matching the exact curl command
+      const baseUrl = "http://94.249.71.89:9000/api/app";
+      const response = await fetch(`${baseUrl}/functions/getsigners`, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json, text/plain, */*",
+          "Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+          "Content-Type": "application/json",
+          "Origin": "http://94.249.71.89:9000",
+          "Pragma": "no-cache",
+          "Referer": "http://94.249.71.89:9000/form/8mZzFxbG1z",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+          "X-Parse-Application-Id": "opensign",
+          "X-Parse-Session-Token": sessionToken,
+        },
+        body: JSON.stringify({
+          search: "" // Empty search to get all contacts
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json() as {
         result?: OpenSignContact[]
         error?: string
       }
       
-      if (response.error) {
-        console.warn(`⚠️ Contacts API returned error: ${response.error}`)
+      if (data.error) {
+        console.warn(`⚠️ Contacts API returned error: ${data.error}`)
         return []
       }
       
-      const contacts = response.result || []
+      const contacts = data.result || []
       console.log(`📇 Successfully fetched ${contacts.length} contacts`)
       
       return contacts

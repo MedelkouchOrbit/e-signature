@@ -22,6 +22,7 @@ export default async function middleware(request: NextRequest) {
     '/test-pdf-direct', // Direct PDF test route
     '/test-status', // PDF status check route
     '/test-complete', // Complete PDF test with signatures
+    '/load', // Public load routes for document signing (no auth required)
     // Keep some localized routes that still exist
     '/تسجيل-الدخول',
     '/تسجيل-العضوية',

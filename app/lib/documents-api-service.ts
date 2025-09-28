@@ -1692,7 +1692,7 @@ function transformOpenSignDocument(doc: OpenSignDocument): Document {
           status: placeholder.status || (doc.IsCompleted ? 'signed' : 'waiting'),
           // Use backend-provided signedAt timestamp if available
           signedAt: placeholder.signedAt,
-          userId: placeholder.signerObjId,
+          userId: placeholder?.TenantUserId?.objectId,
           contactId: placeholder.signerObjId,
           // Use backend-provided order for sequential signing
           order: placeholder.order || (signers.length + 1)
