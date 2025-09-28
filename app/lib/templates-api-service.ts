@@ -142,15 +142,15 @@ export const templatesApiService = {
   // Get all templates for the current user using OpenSign getReport function
   getTemplates: async (limit = 100, skip = 0, searchTerm = ""): Promise<TemplateListResponse> => {
     try {
-      const response = await openSignApiService.post("functions/getReport", {
-        reportId: "6TeaPr321t", // Templates report ID from OpenSign
-        limit,
-        skip,
-        searchTerm
-      }) as {
-        result?: Record<string, unknown>[]
-        error?: string
-      }
+      const response = await openSignApiService.callFunction<{
+              result?: Record<string, unknown>[]
+              error?: string
+            }>('getReport', {
+              reportId: '6TeaPr321t', // Templates report ID from OpenSign
+              skip: skip, // Get all from each report, we'll handle pagination later
+              limit: limit, // Use a larger limit to get more documents from each report
+              searchTerm: searchTerm // Basic search term filtering
+            });
       
       if (response.error) {
         throw new Error(`OpenSign API Error: ${response.error}`)
