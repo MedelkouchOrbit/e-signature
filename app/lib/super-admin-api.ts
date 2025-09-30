@@ -6,6 +6,7 @@
 
 import { openSignApiService } from "@/app/lib/api-service";
 import { error } from "console";
+import { getCurrentUserFromApi } from "./utils/current-user";
 
 // Types for Super Admin functionality
 export interface SuperAdminOrganization {
@@ -1134,23 +1135,52 @@ Current Status: User is assigned to team ${
     data: CreateContactRequest
   ): Promise<SuperAdminContact> {
     try {
-      const response = await openSignApiService.post<{
-        result?: SuperAdminContact;
-        error?: string;
-      }>("functions/savecontact", {
+      const currentUser = await getCurrentUserFromApi();
+      if (!currentUser || !currentUser.id) {
+        throw new Error("No current user or user ID found");
+      }
+
+      // Ensure tenantId is provided
+      const tenant = await this.getTenant(currentUser.id) as Tenant | null;
+
+      if (!tenant || !tenant.objectId) {
+        throw new Error("No tenant found for current user");
+      }
+
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("accesstoken") ||
+            localStorage.getItem("opensign_session_token") ||
+            ""
+          : "";
+
+      const response = await fetch('http://94.249.71.89:9000/api/app/functions/savecontact', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'Content-Type': 'application/json',
+          'X-Parse-Application-Id': 'opensign',
+          'x-parse-session-token': token,
+        },
+        body: JSON.stringify({
         name: data.name,
         email: data.email,
         phone: data.phone || "",
         company: data.company || "",
         jobTitle: data.jobTitle || "",
-        tenantId: data.tenantId,
-      });
+        tenantId: tenant?.objectId,
+      })
+      })
+      const responseData = await response.json() as {
+        result?: SuperAdminContact;
+        error?: string;
+      };
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (responseData.error) {
+        throw new Error(responseData.error);
       }
 
-      return response.result!;
+      return responseData.result!;
     } catch (error) {
       console.error("Error creating contact:", error);
       throw error;

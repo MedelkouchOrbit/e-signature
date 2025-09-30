@@ -129,7 +129,6 @@ interface FieldPosition {
   isStamp: boolean
   key: number
   scale: number
-  zIndex: number
   type: string
   options: {
     name: string
@@ -307,9 +306,53 @@ export default function CreateTemplatePage() {
     
     // Get user information from session token
     if (token) {
-      fetchUserInfo(token)
+      fetchUserInfo(token);
+      fetchUserDetails(token);
     }
   }, [fetchSigners])
+
+  // Fetch user information from session token
+  const fetchUserDetails = async (token: string) => {
+    try {
+      const response = await fetch('http://94.249.71.89:9000/api/app/functions/getUserDetails', {
+        method: 'POST',
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Content-Type': 'text/plain',
+          'Origin': 'http://94.249.71.89:9000',
+          'Pragma': 'no-cache',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+        },
+        body: JSON.stringify({
+          "_ApplicationId": "opensign",
+          "_ClientVersion": "js6.1.1",
+          "_InstallationId": "5b57e02d-5015-4c69-bede-06310ad8bae9",
+          "_SessionToken": token
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('User details fetched:', data?.result)
+        if (data) {
+          setExtUserId(data?.result?.objectId)
+          console.log('ExtUserId set to:', data?.result?.objectId || '')
+        } else {
+          setExtUserId('')
+        }
+      } else {
+        console.error('Failed to fetch user details:', response.status, response.statusText)
+
+        setExtUserId('')
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error)
+      setExtUserId('')
+    }
+  }
 
   // Fetch user information from session token
   const fetchUserInfo = async (token: string) => {
@@ -340,26 +383,21 @@ export default function CreateTemplatePage() {
         console.log('User info fetched:', data)
         if (data) {
           // Use the fetched user data or fallback to defaults
-          setCurrentUserId(data.objectId || 'pyNn9ogqBr')
-          setExtUserId(data.ExtUserId || 'ODs8eHFNVW')
+          setCurrentUserId(data.objectId)
           console.log('User ID set to:', data.objectId || '')
-          console.log('ExtUserId set to:', data.ExtUserId || '')
         } else {
           // No user data returned, use fallbacks
           setCurrentUserId('')
-          setExtUserId('')
         }
       } else {
         console.error('Failed to fetch user info:', response.status, response.statusText)
         // Fallback to default values if API fails
         setCurrentUserId('')
-        setExtUserId('')
       }
     } catch (error) {
       console.error('Error fetching user info:', error)
       // Fallback to default values if API fails
       setCurrentUserId('')
-      setExtUserId('')
     }
   }
 
@@ -745,41 +783,15 @@ export default function CreateTemplatePage() {
   }
 
   const formatPlaceholdersForAPI = () => {
-    // Group field placements by signer
-    const signerGroups: { [key: string]: SignerPlaceholder } = {}
+    const pageGroups: { [pageNumber: number]: FieldPosition[] } = {}
     
     fieldPlacements.forEach(field => {
-      if (!field.assignedSigner) return
-      
-      const signer = selectedSigners.find(s => s.objectId === field.assignedSigner)
-      if (!signer) return
-      
-      if (!signerGroups[field.assignedSigner]) {
-        signerGroups[field.assignedSigner] = {
-          signerPtr: {
-            __type: "Pointer",
-            className: "contracts_Contactbook",
-            objectId: field.assignedSigner
-          },
-          signerObjId: field.assignedSigner,
-          blockColor: "#93a3db",
-          Role: "signer",
-          Id: Math.floor(Math.random() * 100000000),
-          placeHolder: []
-        }
-      }
-      
-      const pageGroup = signerGroups[field.assignedSigner].placeHolder.find(
-        (p: PlaceholderPage) => p.pageNumber === field.page
-      )
-      
       const fieldData: FieldPosition = {
         xPosition: field.x,
         yPosition: field.y,
         isStamp: false,
         key: Math.floor(Math.random() * 100000000),
-        scale: 1,
-        zIndex: 3,
+        scale: 1.0986426555570488,
         type: field.type,
         options: {
           name: `${field.type}-${field.id}`,
@@ -789,17 +801,16 @@ export default function CreateTemplatePage() {
         Height: field.height
       }
       
-      if (pageGroup) {
-        pageGroup.pos.push(fieldData)
-      } else {
-        signerGroups[field.assignedSigner].placeHolder.push({
-          pageNumber: field.page,
-          pos: [fieldData]
-        })
+      if (!pageGroups[field.page]) {
+        pageGroups[field.page] = []
       }
+      pageGroups[field.page].push(fieldData)
     })
     
-    return Object.values(signerGroups)
+    return Object.entries(pageGroups).map(([pageNumber, pos]) => ({
+      pageNumber: parseInt(pageNumber),
+      pos
+    }))
   }
 
   const saveFieldPlacements = async () => {
@@ -1327,6 +1338,63 @@ export default function CreateTemplatePage() {
       if (signingMode === 'sign_yourself') {
         // For self-signing mode, call signPdf API
         console.log('Step 2: Self-signing mode - calling signPdf...')
+
+                // Create template and send emails (reuse existing saveTemplate logic but simplified)
+        const templateResponse = await fetch('http://94.249.71.89:9000/api/app/classes/contracts_Template', {
+          method: 'POST',
+          headers: {
+            'Accept': '*/*',
+            'Content-Type': 'text/plain',
+            'X-Parse-Application-Id': 'opensign',
+            'X-Parse-Session-Token': token,
+          },
+          body: JSON.stringify({
+            Name: templateData.name || "New Template",
+            Description: templateData.description || "",
+            Note: "Please review and sign this document",
+            URL: templateData.fileUrl,
+            CreatedBy: {
+              __type: "Pointer",
+              className: "_User",
+              objectId: currentUserId
+            },
+            ExtUserPtr: {
+              __type: "Pointer",
+              className: "contracts_Users",
+              objectId: extUserId
+            },
+            Signers: [{
+              __type: "Pointer",
+              className: "contracts_Users",
+              objectId: extUserId
+            }],
+            SendinOrder: true,
+            AutomaticReminders: false,
+            RemindOnceInEvery: 5,
+            IsEnableOTP: false,
+            AllowModifications: false,
+            IsTourEnabled: true,
+            TimeToCompleteDays: 15,
+            SignatureType: [
+              {"name": "draw", "enabled": true},
+              {"name": "typed", "enabled": true},
+              {"name": "upload", "enabled": true},
+              {"name": "default", "enabled": true}
+            ],
+            NotifyOnSignatures: true,
+            _ApplicationId: "opensign",
+            _ClientVersion: "js6.1.1",
+            _InstallationId: "5b57e02d-5015-4c69-bede-06310ad8bae9",
+            _SessionToken: token
+          })
+        })
+
+        if (!templateResponse.ok) {
+          throw new Error('Failed to create template')
+        }
+
+        const templateResult = await templateResponse.json()
+        console.log('Template created:', templateResult)
         
         // Convert PDF to base64
         let pdfBase64 = ''
@@ -1398,6 +1466,29 @@ export default function CreateTemplatePage() {
         const documentId = docResult.objectId
         console.log('Document created for signing:', documentId)
 
+      //                 // Step 2: Update template with placeholders
+      const placeholders = formatPlaceholdersForAPI()
+      
+      const documentUpdateResponse = await fetch(`http://94.249.71.89:9000/api/app/classes/contracts_Document/${documentId}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          IsSignyourself: true,
+          Placeholders: placeholders,
+          _method: "PUT",
+          _ApplicationId: "opensign",
+          _ClientVersion: "js6.1.1",
+          _InstallationId: "b18fbce2-8800-4925-b64f-7760e15a3cf9",
+          _SessionToken: token
+        })
+      })
+
+      if (!documentUpdateResponse.ok) {
+        throw new Error('Failed to update template')
+      }
+
+      const documentResult = await documentUpdateResponse.json()
+      console.log('Template updated:', documentResult)
+
         // Call signPdf API following OpenSign pattern
         const signPdfResponse = await fetch('http://94.249.71.89:9000/api/app/functions/signPdf', {
           method: 'POST',
@@ -1431,6 +1522,8 @@ export default function CreateTemplatePage() {
 
         const signPdfResult = await signPdfResponse.json()
         console.log('PDF signed successfully:', signPdfResult)
+
+        getDocumentDetails(documentId);
         
         alert('Document signed successfully!')
         router.push('/templates')
@@ -1690,6 +1783,8 @@ export default function CreateTemplatePage() {
         alert(`Failed to sign PDF: ${signPdfResponse.status} - ${errorText}`)
         return
       }
+
+      saveFieldPlacements();
 
       const signPdfResult = await signPdfResponse.json()
       console.log('PDF signed successfully:', signPdfResult)

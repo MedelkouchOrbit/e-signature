@@ -710,18 +710,15 @@ class DocumentsApiService {
   /**
    * Get single document by ID using OpenSign's getDocument cloud function
    */
-  async getDocument(documentId: string): Promise<Document> {
+  async getDocument(documentId: string): Promise<any> {
     try {
       console.log('📄 Fetching single document using getDocument function:', documentId);
       
       // Use getDocument cloud function (OpenSign's method for single document retrieval)
-      const response = await openSignApiService.callFunction<{
-        result: OpenSignDocument
-      } | OpenSignDocument>(
+      const response = await openSignApiService.callFunction(
         'getDocument',
         {
           docId: documentId,
-          include: 'CreatedBy,ExtUserPtr,Signers,Placeholders,AuditTrail.UserPtr'
         }
       );
       
@@ -730,34 +727,9 @@ class DocumentsApiService {
       if (!response) {
         throw new Error('Document not found');
       }
-      
-      // Handle potential error response from getDocument cloud function
-      const responseWithError = response as OpenSignDocument & { error?: string };
-      if (responseWithError.error) {
-        throw new Error(responseWithError.error);
-      }
-      
-      // Extract the actual document from cloud function response
-      // Cloud functions return data wrapped in { result: ... }
-      let documentData: OpenSignDocument;
-      if ('result' in response && response.result) {
-        documentData = response.result as OpenSignDocument;
-        console.log('📄 Extracted document from cloud function result');
-      } else {
-        documentData = response as OpenSignDocument;
-        console.log('📄 Using direct response as document');
-      }
-      
-      console.log('📄 Document data to transform:', {
-        objectId: documentData.objectId,
-        Name: documentData.Name,
-        Status: documentData.Status,
-        Signers: documentData.Signers?.length,
-        Placeholders: documentData.Placeholders?.length,
-        CreatedBy: documentData.CreatedBy?.objectId
-      });
-      
-      return transformOpenSignDocument(documentData)
+
+
+      return (response as any).result
     } catch (error) {
       console.error('Error fetching document:', error)
       throw error
@@ -1358,23 +1330,13 @@ class DocumentsApiService {
       // Try the direct getFileUrl endpoint as primary (but with conflict detection)
       try {
         console.log('📄 Trying getfileurl endpoint for JWT URL...');
-        const directResponse = await openSignApiService.post<{
-          result?: {
-            success: boolean
-            fileUrl: string
-            originalUrl?: string
-            expires: string
-          }
-          error?: string
-        }>("functions/getfileurl", {
-          docId: documentId
-        });
+        const directResponse = await this.getDocument(documentId);
 
         console.log('📄 getfileurl response:', directResponse);
 
-        if (directResponse.result?.success && directResponse.result.fileUrl) {
-          const fileUrl = directResponse.result.fileUrl;
-          
+
+          const fileUrl = directResponse.CertificateUrl;
+
           // Check for conflicting authentication (AWS + JWT token)
           if (fileUrl.includes('X-Amz-') && fileUrl.includes('&token=')) {
             console.warn('📄 Skipping getfileurl - conflicting authentication detected (AWS + JWT)');
@@ -1385,148 +1347,8 @@ class DocumentsApiService {
             console.log('📄 Direct file URL found and cleaned:', cleanedUrl);
             return cleanedUrl;
           }
-        }
       } catch (directError) {
         console.warn('📄 getfileurl endpoint failed:', directError);
-      }
-
-      // Fallback 1: Try the dedicated getDocumentFile endpoint
-      try {
-        console.log('📄 Trying getdocumentfile endpoint...');
-        const fallbackResponse = await openSignApiService.post<{
-          result?: {
-            success: boolean
-            document: {
-              objectId: string
-              Name: string
-              Status: string
-              primaryFileUrl?: string
-              fileUrls?: Array<{
-                type: 'document' | 'signed' | 'template' | 'audit'
-                url: string
-                originalUrl?: string
-              }>
-            }
-          }
-          error?: string
-        }>("functions/getdocumentfile", {
-          docId: documentId
-        });
-
-        console.log('📄 getdocumentfile response:', fallbackResponse);
-
-        if (fallbackResponse.result?.success && fallbackResponse.result.document) {
-          const document = fallbackResponse.result.document;
-          
-          // Check for primary file URL first
-          if (document.primaryFileUrl) {
-            const fileUrl = document.primaryFileUrl;
-            
-            // Check for conflicting authentication (AWS + JWT token)
-            if (fileUrl.includes('X-Amz-') && fileUrl.includes('&token=')) {
-              console.warn('📄 Skipping getdocumentfile primary URL - conflicting authentication detected');
-            } else {
-              const cleanedUrl = this.cleanFileUrl(fileUrl);
-              console.log('📄 Primary file URL found and cleaned:', cleanedUrl);
-              return cleanedUrl;
-            }
-          }
-
-          // Check file URLs array for appropriate file type
-          if (document.fileUrls && document.fileUrls.length > 0) {
-            // If signed document is requested and available, use it
-            if (signed) {
-              const signedFile = document.fileUrls.find(file => file.type === 'signed');
-              if (signedFile) {
-                const cleanedUrl = this.cleanFileUrl(signedFile.url);
-                console.log('📄 Signed document URL found and cleaned:', cleanedUrl);
-                return cleanedUrl;
-              }
-            }
-
-            // Otherwise use the first available file (document, template, etc.)
-            const firstFile = document.fileUrls[0];
-            if (firstFile && firstFile.url) {
-              const fileUrl = firstFile.url;
-              
-              // Check for conflicting authentication (AWS + JWT token)
-              if (fileUrl.includes('X-Amz-') && fileUrl.includes('&token=')) {
-                console.warn('📄 Skipping getdocumentfile file URL - conflicting authentication detected');
-              } else {
-                const cleanedUrl = this.cleanFileUrl(fileUrl);
-                console.log('📄 Document file URL found and cleaned:', cleanedUrl, 'type:', firstFile.type);
-                return cleanedUrl;
-              }
-            }
-          }
-        }
-      } catch (fallbackError) {
-        console.warn('📄 getdocumentfile endpoint failed:', fallbackError);
-      }
-
-      // Fallback 2: Try the enhanced getDocument endpoint
-      try {
-        console.log('📄 Trying enhanced getDocument endpoint...');
-        const enhancedResponse = await openSignApiService.post<{
-          result?: {
-            objectId: string
-            Name: string
-            primaryFileUrl?: string
-            fileUrls?: Array<{
-              type: 'document' | 'signed' | 'template' | 'audit'
-              url: string
-              originalUrl?: string
-            }>
-          }
-          error?: string
-        }>("functions/getDocument", {
-          docId: documentId
-        });
-
-        console.log('📄 Enhanced getDocument response:', enhancedResponse);
-
-        if (enhancedResponse.result) {
-          const documentData = enhancedResponse.result;
-
-          // Check for primary file URL first
-          if (documentData.primaryFileUrl) {
-            const cleanedUrl = this.cleanFileUrl(documentData.primaryFileUrl);
-            console.log('📄 Enhanced primary document URL found and cleaned:', cleanedUrl);
-            return cleanedUrl;
-          }
-
-          // Check file URLs array
-          if (documentData.fileUrls && documentData.fileUrls.length > 0) {
-            const firstFile = documentData.fileUrls[0];
-            if (firstFile) {
-              const cleanedUrl = this.cleanFileUrl(firstFile.url);
-              console.log('📄 Enhanced document file URL found and cleaned:', cleanedUrl);
-              return cleanedUrl;
-            }
-          }
-        }
-      } catch (enhancedError) {
-        console.warn('📄 Enhanced getDocument failed:', enhancedError);
-      }
-
-      // Fallback 3: Try the original document query with URL fields (legacy)
-      try {
-        console.log('📄 Trying original document query fallback...');
-        const originalResponse = await openSignApiService.get<OpenSignDocument & Record<string, unknown>>(
-          `classes/contracts_Document/${documentId}?include=CreatedBy,ExtUserPtr,Signers,Placeholders,File,URL,SignedUrl`
-        );
-
-        console.log('📄 Original document response:', originalResponse);
-
-        // Check for URL fields
-        const url = signed && originalResponse.SignedUrl ? originalResponse.SignedUrl : originalResponse.URL;
-        
-        if (url) {
-          console.log('📄 Legacy document URL found:', url);
-          return url;
-        }
-      } catch (originalError) {
-        console.warn('📄 Original document query failed:', originalError);
       }
 
       console.warn('📄 All endpoints failed to provide usable file URLs for document:', documentId);

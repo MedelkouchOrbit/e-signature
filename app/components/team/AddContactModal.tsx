@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { contactsApiService } from "@/app/lib/templates-api-service"
 import { useToast } from "@/hooks/use-toast"
+import { SuperAdminApiService } from "@/app/lib/super-admin-api"
 
 interface AddContactModalProps {
   isOpen: boolean
@@ -73,7 +74,7 @@ export function AddContactModal({ isOpen, onClose, onSuccess }: AddContactModalP
     setLoading(true)
 
     try {
-      await contactsApiService.createContact({
+      await SuperAdminApiService.createContact({
         name: formData.name.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim() || undefined
@@ -185,7 +186,7 @@ export function AddContactModal({ isOpen, onClose, onSuccess }: AddContactModalP
           </div>
 
           {/* Action buttons */}
-          <div className="flex justify-end space-x-2 pt-4">
+          <div className="flex justify-end pt-4 space-x-2">
             <Button
               type="button"
               variant="outline"
@@ -196,12 +197,12 @@ export function AddContactModal({ isOpen, onClose, onSuccess }: AddContactModalP
             </Button>
             <Button
               type="submit"
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="text-white bg-green-600 hover:bg-green-700"
               disabled={loading}
             >
               {loading ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <div className="w-4 h-4 mr-2 border-b-2 border-white rounded-full animate-spin"></div>
                   Adding...
                 </>
               ) : (
