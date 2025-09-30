@@ -404,7 +404,6 @@ export class SuperAdminApiService {
           Name: data.name,
           IsActive: true,
           Description: data.description || "",
-          _SessionToken: sessionToken,
         });
 
         if (orgResponse.error) {
@@ -440,6 +439,8 @@ export class SuperAdminApiService {
           // For now, we'll continue with the organization created but warn about the incomplete transaction
         }
 
+        await this.getAllOrganizations(); // Refresh cache
+
         return {
           objectId: orgResponse.objectId,
           Name: data.name,
@@ -466,12 +467,13 @@ export class SuperAdminApiService {
    * Uses direct queries for faster results when searching for specific organizations
    */
   private static async findOrganizationByName(
-    name: string,
-    sessionToken: string
+    name: string
   ): Promise<SuperAdminOrganization | null> {
     try {
       // Method 1: Direct query (fastest for specific name searches)
       console.log(`🔍 Direct search for organization: "${name}"`);
+
+      await this.getAllOrganizations(); // Refresh cache
 
       const directResponse = await openSignApiService.post<{
         results?: SuperAdminOrganization[];
@@ -484,7 +486,6 @@ export class SuperAdminApiService {
         order: "-createdAt",
         limit: 1,
         _method: "GET",
-        _SessionToken: sessionToken,
       });
 
       if (directResponse.results && directResponse.results.length > 0) {
@@ -532,31 +533,33 @@ export class SuperAdminApiService {
       };
 
       const sessionToken = getSessionToken();
-      const response = (await fetch(
-        `http://94.249.71.89:9000/api/app/functions/getuserlistbyorg`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "text/plain",
-          },
-          body: JSON.stringify({
-            organizationId: organizationId,
-            _ApplicationId: "opensign",
-            _ClientVersion: "js6.1.1",
-            _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
-            _SessionToken: sessionToken,
-          }),
-        }
-      )).json() as {
-            result?: Array<{
-              objectId: string;
-              Name?: string;
-              Email?: string;
-              UserRole?: string;
-              UserId?: { name?: string; email?: string };
-            }>;
-            error?: string;
-          };
+      const response = (
+        await fetch(
+          `http://94.249.71.89:9000/api/app/functions/getuserlistbyorg`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "text/plain",
+            },
+            body: JSON.stringify({
+              organizationId: organizationId,
+              _ApplicationId: "opensign",
+              _ClientVersion: "js6.1.1",
+              _InstallationId: "ef44e42e-e0a3-44a0-a359-90c26af8ffac",
+              _SessionToken: sessionToken,
+            }),
+          }
+        )
+      ).json() as {
+        result?: Array<{
+          objectId: string;
+          Name?: string;
+          Email?: string;
+          UserRole?: string;
+          UserId?: { name?: string; email?: string };
+        }>;
+        error?: string;
+      };
 
       if (response.error) {
         throw new Error(`HTTP error! status: ${response}`);
@@ -698,7 +701,6 @@ export class SuperAdminApiService {
           objectId: data.organizationId,
         },
         TeamIds: teamPointers,
-        _SessionToken: sessionToken,
         ...(parseUserId && {
           UserId: {
             __type: "Pointer",
@@ -1141,7 +1143,7 @@ Current Status: User is assigned to team ${
       }
 
       // Ensure tenantId is provided
-      const tenant = await this.getTenant(currentUser.id) as Tenant | null;
+      const tenant = (await this.getTenant(currentUser.id)) as Tenant | null;
 
       if (!tenant || !tenant.objectId) {
         throw new Error("No tenant found for current user");
@@ -1154,24 +1156,27 @@ Current Status: User is assigned to team ${
             ""
           : "";
 
-      const response = await fetch('http://94.249.71.89:9000/api/app/functions/savecontact', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json, text/plain, */*',
-          'Content-Type': 'application/json',
-          'X-Parse-Application-Id': 'opensign',
-          'x-parse-session-token': token,
-        },
-        body: JSON.stringify({
-        name: data.name,
-        email: data.email,
-        phone: data.phone || "",
-        company: data.company || "",
-        jobTitle: data.jobTitle || "",
-        tenantId: tenant?.objectId,
-      })
-      })
-      const responseData = await response.json() as {
+      const response = await fetch(
+        "http://94.249.71.89:9000/api/app/functions/savecontact",
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "X-Parse-Application-Id": "opensign",
+            "x-parse-session-token": token,
+          },
+          body: JSON.stringify({
+            name: data.name,
+            email: data.email,
+            phone: data.phone || "",
+            company: data.company || "",
+            jobTitle: data.jobTitle || "",
+            tenantId: tenant?.objectId,
+          }),
+        }
+      );
+      const responseData = (await response.json()) as {
         result?: SuperAdminContact;
         error?: string;
       };
